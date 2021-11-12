@@ -1,2 +1,2 @@
-# fl-opt
+# fl-grouping
 federated learning optimization
