@@ -31,8 +31,10 @@ class TaskConfig:
 
 
 class Task:
-    def __init__(self, model: nn.Module) -> None:
+    def __init__(self, model: nn.Module, dataset: Dataset, config: TaskConfig) -> None:
         self.model: nn.Module = deepcopy(model)
+        self.dataset = dataset
+        self.config = deepcopy(config)
 
     def set_model(self, model: nn.Module):
         self.model = deepcopy(model)
@@ -68,13 +70,10 @@ class TaskCIFAR(Task):
         return (trainset, testset)
 
     def __init__(self, dataset: Dataset, config: TaskConfig) -> None:
-        super().__init__(CIFAR())
+        super().__init__(CIFAR(), dataset, config)
 
-        self.dataset = dataset
-        self.config = config
         self.dataloader: DataLoader = DataLoader(self.dataset, batch_size=self.config.batch_size,
             shuffle=True)
-
         self.loss = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9)
 
