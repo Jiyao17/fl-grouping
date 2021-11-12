@@ -4,40 +4,36 @@
 # SpeechCommand: pytorch tutorial audio
 # TextClassification: pytorch tutorial text
 
-import json
 from multiprocessing import set_start_method
 
-from utils.simulator import Simulator
-from utils.tasks import Config, UniTask
+from utils.task import Task, TaskConfig, TaskCIFAR
+from utils.models import CIFAR
 
+import torch
 
 
 if __name__ == "__main__":
     # prepare for multi-proccessing
     # if get_start_method(False) != "spawn":
-    set_start_method("spawn")
+    # set_start_method("spawn")
 
-    sigma = [9, 8, 5, 3, 2]
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    trainset, testset = TaskCIFAR.load_dataset("./data/")
 
-    config = Config()
-    config.task_name = UniTask.supported_tasks[0]
-    config.client_num = 100
-    config.l_data_num = 600
-    config.l_epoch_num = 5
-    config.l_batch_size = 10
-    config.g_epoch_num = 500
-    config.sigma = sigma
-    config.simulation_num = 3
-    
-    config.result_dir = "./result-noniid/"
-    config.test_type = "non-iid-grouping"
+    train_config = TaskConfig(1, 32, 0.1, device)
+    test_config = TaskConfig(1, 256, 0, device)
 
-    simulator: Simulator = Simulator()
+    cifar_train = TaskCIFAR(trainset, train_config)
+    trainde_model = cifar_train.get_model()
+    cifar_test = TaskCIFAR(testset, test_config)
 
+    for i in range(5):
+        cifar_train.train_model()
 
-    simulator.start()
-
-    
+        cifar_test.set_model(cifar_train.get_model())
+        acc, loss = cifar_test.test_model()
+        # acc, loss = cifar_train.test_model()
+        print("accuracy: " + str(acc) + ", loss: " + str(loss))
 
 
 
