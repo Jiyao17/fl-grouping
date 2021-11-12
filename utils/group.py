@@ -45,10 +45,10 @@ class Group():
 
         self.model: nn.Module = deepcopy(clients[0].task.get_model())
 
-    def download_model(self, model: nn.Module):
+    def set_model(self, model: nn.Module):
         self.model = deepcopy(model)
 
-    def upload_model(self):
+    def get_model(self):
         return self.model
 
     def train_model(self):
