@@ -10,6 +10,8 @@ def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
     list[i] = list[int] = all indices for category i
     """
     targets = dataset.targets
+    if type(dataset.targets) is not list:
+        targets = targets.tolist()
     targets_list = list(set(targets))
     # can be deleted, does not matter but more clear if kept
     targets_list.sort()
