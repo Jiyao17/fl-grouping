@@ -7,7 +7,7 @@
 from multiprocessing import set_start_method
 from utils.hierarchy import Client, Global, Group
 
-from utils.task import Task, Config, TaskCIFAR
+from utils.task import Config, TaskCIFAR
 from utils.data import dataset_split_r
 
 import torch
