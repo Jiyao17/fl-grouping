@@ -48,5 +48,7 @@ def dataset_split_r(dataset: Dataset, subset_num: int, subset_size, r: int) -> '
             indices_list[i] += categorized_index_list[counter][:one_category_num]
             categorized_index_list[counter] = categorized_index_list[counter][one_category_num:]
 
+        random.shuffle(indices_list[i])
+
     subsets = [ Subset(dataset, indices) for indices in indices_list ]
     return subsets

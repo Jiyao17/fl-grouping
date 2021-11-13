@@ -41,7 +41,7 @@ class Task:
         self.config = config
 
     def set_model(self, model: nn.Module):
-        self.model = deepcopy(model)
+        self.model.load_state_dict(deepcopy(model.state_dict()))
 
     def get_model(self) -> nn.Module:
         return self.model
@@ -73,6 +73,25 @@ class TaskCIFAR(Task):
 
         return (trainset, testset)
 
+    @staticmethod
+    def test_model(model: nn.Module, dataloader: DataLoader, device):
+        model.to(device)
+        model.eval()
+
+        size = 0
+        correct: float = 0.0
+        test_loss: float = 0.0
+        
+        # with torch.no_grad():
+        for samples, labels in dataloader:
+            pred = model(samples.to(device))
+            # test_loss += loss(pred, labels.to(device)).item()
+            correct += (pred.argmax(1) == labels.to(device)).type(torch.float).sum().item()
+            size += len(samples)
+        correct /= 1.0*size
+        test_loss /= 1.0*size
+        return correct, test_loss
+
     def __init__(self, dataset: Dataset, config: Config) -> None:
         super().__init__(CIFAR_CNN(), dataset, config)
 
@@ -98,23 +117,6 @@ class TaskCIFAR(Task):
 
                 # running_loss += loss.item()
 
-    def test_model(self):
-        self.model.to(self.config.device)
-        self.model.eval()
-
-        size = len(self.dataset)
-        correct: float = 0.0
-        test_loss: float = 0.0
-        
-        # with torch.no_grad():
-        for samples, labels in self.dataloader:
-            pred = self.model(samples.to(self.config.device))
-            test_loss += self.loss(pred, labels.to(self.config.device)).item()
-            correct += (pred.argmax(1) == labels.to(self.config.device)).type(torch.float).sum().item()
-            
-        correct /= 1.0*size
-        test_loss /= 1.0*size
-        return correct, test_loss
 
             
 
