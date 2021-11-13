@@ -126,7 +126,7 @@ class AGNEWS(nn.Module):
         return self.fc(embedded)
 
 
-class CIFAR(nn.Module):
+class CIFAR_CNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(

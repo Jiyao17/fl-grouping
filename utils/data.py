@@ -38,14 +38,15 @@ def dataset_split_r(dataset: Dataset, subset_num: int, subset_size, r: int) -> '
 
     # fill the dominant type of data
     category_num = len(categorized_index_list)
+    one_category_num = int(subset_size / r)
     counter = -1
     for i in range(subset_num):
         for j in range(r):
             counter += 1
             counter %= category_num
 
-            indices_list[i] += categorized_index_list[counter][:subset_size]
-            categorized_index_list[counter] = categorized_index_list[counter][subset_size:]
+            indices_list[i] += categorized_index_list[counter][:one_category_num]
+            categorized_index_list[counter] = categorized_index_list[counter][one_category_num:]
 
     subsets = [ Subset(dataset, indices) for indices in indices_list ]
     return subsets

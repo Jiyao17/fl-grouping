@@ -10,31 +10,35 @@ import torchvision.transforms as tvtf
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader
 
-from utils.models import CIFAR
+from utils.models import CIFAR_CNN
 
 
-class TaskConfig:
+class Config:
     def __init__(self,
         # train: bool,
         # dataset: Dataset,
-        epoch_num: int,
+        # global_epoch_num: int,
+        # group_epoch_num: int,
+        local_epoch_num: int,
         batch_size: int,
         lr: float,
         device: str,
     ) -> None:
         # self.train = train
         # self.dataset = dataset
-        self.epoch_num = epoch_num
+        # self.global_epoch_num = global_epoch_num
+        # self.group_epoch_num = group_epoch_num
+        self.local_epoch_num = local_epoch_num
         self.batch_size = batch_size
         self.lr = lr
         self.device = device
 
 
 class Task:
-    def __init__(self, model: nn.Module, dataset: Dataset, config: TaskConfig) -> None:
+    def __init__(self, model: nn.Module, dataset: Dataset, config: Config) -> None:
         self.model: nn.Module = deepcopy(model)
         self.dataset = dataset
-        self.config = deepcopy(config)
+        self.config = config
 
     def set_model(self, model: nn.Module):
         self.model = deepcopy(model)
@@ -60,7 +64,7 @@ class TaskCIFAR(Task):
     def load_dataset(data_path: str):
         transform = tvtf.Compose(
             [tvtf.ToTensor(),
-            tvtf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+                tvtf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
         trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
                 download=True, transform=transform)
@@ -69,8 +73,8 @@ class TaskCIFAR(Task):
 
         return (trainset, testset)
 
-    def __init__(self, dataset: Dataset, config: TaskConfig) -> None:
-        super().__init__(CIFAR(), dataset, config)
+    def __init__(self, dataset: Dataset, config: Config) -> None:
+        super().__init__(CIFAR_CNN(), dataset, config)
 
         self.dataloader: DataLoader = DataLoader(self.dataset, batch_size=self.config.batch_size,
             shuffle=True)
@@ -82,7 +86,7 @@ class TaskCIFAR(Task):
         self.model.train()
 
         # running_loss = 0
-        for epoch in range(self.config.epoch_num):
+        for epoch in range(self.config.local_epoch_num):
             for (samples, lables) in self.dataloader:
 
                 y = self.model(samples.to(self.config.device))
