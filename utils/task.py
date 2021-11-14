@@ -27,7 +27,7 @@ class ExpConfig:
         client_num: int=100,
         group_size: int=10,
         group_num: int=10,
-        local_data_num: int=600,
+        local_data_num: int=500,
         batch_size: int=32,
         lr: int=0.01,
         noniid_degree: float=5,
@@ -78,10 +78,10 @@ class Task:
     def __init__(self, model: nn.Module, trainset: Dataset, config: ExpConfig) -> None:
         self.model: nn.Module = model
         self.trainset = trainset
-        self.testset = testset
         self.config = config
 
     def set_model(self, model: nn.Module):
+        # self.optmizaer
         self.model.load_state_dict(deepcopy(model.state_dict()))
 
     def get_model(self) -> nn.Module:
