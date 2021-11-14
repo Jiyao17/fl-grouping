@@ -1,23 +1,27 @@
 
 
 from utils.data import dataset_split_r
-from utils.task import TaskCIFAR
+from utils.task import TaskCIFAR, ExpConfig
 
 
-trainset, testset = TaskCIFAR.load_dataset("./data/")
+config = ExpConfig()
 
-subsets = dataset_split_r(trainset, 100, 100, 3)
+print(vars(config))
 
-lable_list = []
-for (sample, lable) in subsets[5]:
-    lable_list.append(lable)
+# trainset, testset = TaskCIFAR.load_dataset("./data/")
 
-print(lable_list)
+# subsets = dataset_split_r(trainset, 100, 100, 3)
 
-sum = 0
-for i in range(10):
-    count = lable_list.count(i)
-    print(count)
-    sum += count
+# lable_list = []
+# for (sample, lable) in subsets[5]:
+#     lable_list.append(lable)
 
-print(sum)
+# print(lable_list)
+
+# sum = 0
+# for i in range(10):
+#     count = lable_list.count(i)
+#     print(count)
+#     sum += count
+
+# print(sum)

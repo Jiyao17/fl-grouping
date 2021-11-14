@@ -13,30 +13,69 @@ from torch.utils.data import DataLoader
 from utils.models import CIFAR_CNN
 
 
-class Config:
+
+class ExpConfig:
+    TEST_TYPE = ("grouping", "iid")
+    TASK_NAME = ("CIFAR", )
+
     def __init__(self,
-        # train: bool,
-        # dataset: Dataset,
-        # global_epoch_num: int,
-        # group_epoch_num: int,
-        local_epoch_num: int,
-        batch_size: int,
-        lr: float,
-        device: str,
-    ) -> None:
-        # self.train = train
-        # self.dataset = dataset
-        # self.global_epoch_num = global_epoch_num
-        # self.group_epoch_num = group_epoch_num
-        self.local_epoch_num = local_epoch_num
-        self.batch_size = batch_size
-        self.lr = lr
-        self.device = device
+        test_type: str="grouping",
+        task_name: str="CIFAR",
+        global_epoch_num: int=500,
+        group_epoch_num: int=5,
+        local_epoch_num: int=1,
+        client_num: int=100,
+        group_size: int=10,
+        group_num: int=10,
+        local_data_num: int=600,
+        batch_size: int=32,
+        lr: int=0.01,
+        noniid_degree: float=5,
+        device: int="cuda",
+        datapath: int="./data/",
+        result_dir: str="./cifar/noniid/",
+        simulation_num: int=3,
+        simulation_index: int=0,
+        ) -> None:
+        self.task_type: str = test_type
+        self.task_name: str = task_name
+        self.global_epoch_num: int = global_epoch_num
+        self.group_epoch_num: int = group_epoch_num
+        self.local_epoch_num: int = local_epoch_num
+        self.client_num: int = client_num
+        self.group_size: int = group_size
+        self.group_num: int = group_num
+        self.local_data_num: int = local_data_num
+        self.batch_size: int = batch_size
+        self.lr: int = lr
+        self.datapath: int = datapath
+        self.device: int = device
+        self.result_dir: str = result_dir
+        self.simulation_num: int = simulation_num
+        self.simulation_index: int = simulation_index
+        self.noniid_degree: float = noniid_degree
+
+    def get_class(self):
+        if self.task_name == ExpConfig.TASK_NAME[0]:
+            return TaskCIFAR
+        else:
+            raise "Unspported task"
 
 
 class Task:
-    def __init__(self, model: nn.Module, dataset: Dataset, config: Config) -> None:
-        self.model: nn.Module = deepcopy(model)
+    @overload
+    @staticmethod
+    def load_dataset(data_path: str):
+        pass
+    
+    @overload
+    @staticmethod
+    def test_model():
+        pass
+
+    # create new model while calling __init__ in subclasses
+    def __init__(self, model: nn.Module, dataset: Dataset, config: ExpConfig) -> None:
+        self.model: nn.Module = model
         self.dataset = dataset
         self.config = config
 
@@ -48,10 +87,6 @@ class Task:
 
     @overload
     def train_model(self):
-        pass
- 
-    @overload
-    def test_model(self):
         pass
 
 
@@ -74,7 +109,7 @@ class TaskCIFAR(Task):
         return (trainset, testset)
 
     @staticmethod
-    def test_model(model: nn.Module, dataloader: DataLoader, device):
+    def test_model(model: nn.Module, dataloader: DataLoader, device, loss = None):
         model.to(device)
         model.eval()
 
@@ -85,14 +120,17 @@ class TaskCIFAR(Task):
         # with torch.no_grad():
         for samples, labels in dataloader:
             pred = model(samples.to(device))
-            # test_loss += loss(pred, labels.to(device)).item()
             correct += (pred.argmax(1) == labels.to(device)).type(torch.float).sum().item()
+            if loss is not None:
+                test_loss += loss(pred, labels.to(device)).item()
+
             size += len(samples)
+
         correct /= 1.0*size
         test_loss /= 1.0*size
         return correct, test_loss
 
-    def __init__(self, dataset: Dataset, config: Config) -> None:
+    def __init__(self, dataset: Dataset, config: ExpConfig) -> None:
         super().__init__(CIFAR_CNN(), dataset, config)
 
         self.dataloader: DataLoader = DataLoader(self.dataset, batch_size=self.config.batch_size,
@@ -118,8 +156,14 @@ class TaskCIFAR(Task):
                 # running_loss += loss.item()
 
 
-            
 
+# class UniTask:
+#     def __init__(self, config: ExpConfig) -> None:
+#         self.config = deepcopy(config)
+    
+#         self.task_class: type = None
+#         if self.config.task_name == "CIFAR":
+#             self.task_class = TaskCIFAR
 
 
 

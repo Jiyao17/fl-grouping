@@ -8,32 +8,22 @@ from copy import deepcopy
 from multiprocessing import set_start_method
 from utils.hierarchy import Client, Global, Group
 
-from utils.task import Config, TaskCIFAR
+from utils.task import TrainConfig, TaskCIFAR
 from utils.data import dataset_split_r
 
 import torch
 from torch.utils.data import DataLoader
 
+from utils.task import TrainConfig, ExpConfig
+from utils.simulator import Simulator
+
 
 def global_run():
-    # set configs
-    group_epoch_num = 5
-    local_epoch_num = 1
-
-    client_num = 50
-    group_size = 10
-    group_num = int(client_num/group_size)
-
-    data_num = 256
-    batch_size = 64
-    lr = 0.01
-    r = 5
 
     # create hierarchical structure
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     trainset, testset = TaskCIFAR.load_dataset("./data/")
     subsets = dataset_split_r(trainset, client_num, data_num, r)
-    config = Config(local_epoch_num, batch_size, lr, device)
+    config = TrainConfig(local_epoch_num, batch_size, lr, device)
 
     clients = [ Client(TaskCIFAR(subsets[i], config))
         for i in range(client_num) ]
@@ -49,7 +39,6 @@ def global_run():
     global_sys = Global(groups, group_epoch_num)
 
     
-    global_epoch_num = 1000
     _, testset = TaskCIFAR.load_dataset("./data/")
 
     dataloader: DataLoader = DataLoader(testset, batch_size=256,
@@ -64,24 +53,11 @@ def global_run():
 
 
 def group_run():
-    # set configs
-    group_epoch_num = 5
-    local_epoch_num = 1
-
-    client_num = 3
-    data_num = 1000
-    batch_size = 100
-
-    group_size = client_num
-
-    lr = 0.01
-    r = 5
-
     # create hierarchical structure
     device = "cuda" if torch.cuda.is_available() else "cpu"
     trainset, testset = TaskCIFAR.load_dataset("./data/")
     subsets = dataset_split_r(trainset, client_num, data_num, r)
-    config = Config(local_epoch_num, batch_size, lr, device)
+    config = TrainConfig(local_epoch_num, batch_size, lr, device)
 
     clients = [ Client(TaskCIFAR(subsets[i], config))
         for i in range(client_num) ]
@@ -95,6 +71,7 @@ def group_run():
     dataloader: DataLoader = DataLoader(testset, batch_size=256,
         shuffle=False)
 
+    file = open("")
     for i in range(group_epoch_num):
         sd = deepcopy(group.model.state_dict())
         group.distribute_model()
@@ -113,5 +90,9 @@ if __name__ == "__main__":
     # set_start_method("spawn")
 
     # global_run()
-    group_run()
+    # group_run()
 
+    # default config for iid
+    exp_config = ExpConfig("iid", group_epoch_num=500, local_epoch_num=5, result_dir="./cifar/iid/")
+    # exp_config = ExpConfig()
+    sim = Simulator(exp_config)
