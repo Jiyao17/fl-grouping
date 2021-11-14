@@ -8,7 +8,7 @@ import torchvision
 import torchvision.transforms as tvtf
 
 from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, dataloader
 
 from utils.models import CIFAR_CNN
 
@@ -70,13 +70,15 @@ class Task:
     
     @overload
     @staticmethod
-    def test_model():
+    def test_model(model: nn.Module, testloader: DataLoader, device: str) \
+        -> 'tuple[float, float]':
         pass
 
     # create new model while calling __init__ in subclasses
-    def __init__(self, model: nn.Module, dataset: Dataset, config: ExpConfig) -> None:
+    def __init__(self, model: nn.Module, trainset: Dataset, config: ExpConfig) -> None:
         self.model: nn.Module = model
-        self.dataset = dataset
+        self.trainset = trainset
+        self.testset = testset
         self.config = config
 
     def set_model(self, model: nn.Module):
@@ -89,36 +91,46 @@ class Task:
     def train_model(self):
         pass
 
+    @overload
+    def test_model():
+        pass
+
 
 class TaskCIFAR(Task):
+    loss = nn.CrossEntropyLoss()
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
         'dog', 'frog', 'horse', 'ship', 'truck')
 
     @staticmethod
-    def load_dataset(data_path: str):
+    def load_dataset(data_path: str, type: str="both"):
         transform = tvtf.Compose(
             [tvtf.ToTensor(),
                 tvtf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-        trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
+        trainset, testset = None, None
+        if type != "test":
+            trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
                 download=True, transform=transform)
-        testset = torchvision.datasets.CIFAR10(root=data_path, train=False,
+        if type != "train":
+            testset = torchvision.datasets.CIFAR10(root=data_path, train=False,
                 download=True, transform=transform)
 
         return (trainset, testset)
 
     @staticmethod
-    def test_model(model: nn.Module, dataloader: DataLoader, device, loss = None):
+    def test_model(model: nn.Module, testloader: DataLoader, device: str) \
+        -> 'tuple[float, float]':
         model.to(device)
         model.eval()
 
+        loss = TaskCIFAR.loss
         size = 0
         correct: float = 0.0
         test_loss: float = 0.0
         
         # with torch.no_grad():
-        for samples, labels in dataloader:
+        for samples, labels in testloader:
             pred = model(samples.to(device))
             correct += (pred.argmax(1) == labels.to(device)).type(torch.float).sum().item()
             if loss is not None:
@@ -130,11 +142,13 @@ class TaskCIFAR(Task):
         test_loss /= 1.0*size
         return correct, test_loss
 
-    def __init__(self, dataset: Dataset, config: ExpConfig) -> None:
-        super().__init__(CIFAR_CNN(), dataset, config)
+    def __init__(self, trainset: Dataset, config: ExpConfig) -> None:
+        super().__init__(CIFAR_CNN(), trainset, config)
 
-        self.dataloader: DataLoader = DataLoader(self.dataset, batch_size=self.config.batch_size,
+        self.trainloader: DataLoader = DataLoader(self.trainset, batch_size=self.config.batch_size,
             shuffle=True)
+        # self.testloader: DataLoader = DataLoader(self.testset, batch_size=512,
+        #     shuffle=False)
         self.loss = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9)
 
@@ -144,7 +158,7 @@ class TaskCIFAR(Task):
 
         # running_loss = 0
         for epoch in range(self.config.local_epoch_num):
-            for (samples, lables) in self.dataloader:
+            for (samples, lables) in self.trainloader:
 
                 y = self.model(samples.to(self.config.device))
                 loss = self.loss(y, lables.to(self.config.device))
