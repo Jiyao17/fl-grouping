@@ -52,3 +52,37 @@ def dataset_split_r(dataset: Dataset, subset_num: int, subset_size, r: int) -> '
 
     subsets = [ Subset(dataset, indices) for indices in indices_list ]
     return subsets
+
+
+def dataset_split_r_random(dataset: Dataset, subset_num: int, subset_size, r: int) -> 'list[Dataset]':
+    """
+    """
+    # each dataset contains r types of data
+    categorized_index_list = dataset_categorize(dataset)
+    indices_list = [[] for i in range(subset_num)]
+
+    # fill the dominant type of data
+    category_num = len(categorized_index_list)
+    one_category_num = int(subset_size / r)
+    counter = -1
+    for i in range(subset_num):
+        
+        for j in range(r):
+            # choose r types randomly
+            remnant_categories: list[int] = [ n for n in range(category_num)]
+            choices: list[int] = random.choices(remnant_categories, k=r)
+                
+            for choice in choices:
+                # no enougn data in this category
+                while len(categorized_index_list[choice]) < subset_size:
+                    # get another choice
+                    choice = random.randint(0, category_num - 1)
+                # add choosed data
+                indices_list[i] += categorized_index_list[choice][:one_category_num]
+                # delete choosed data from dataset
+                categorized_index_list[choice] = categorized_index_list[counter][one_category_num:]
+
+        random.shuffle(indices_list[i])
+
+    subsets = [ Subset(dataset, indices) for indices in indices_list ]
+    return subsets

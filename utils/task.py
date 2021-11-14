@@ -15,7 +15,7 @@ from utils.models import CIFAR_CNN
 
 
 class ExpConfig:
-    TEST_TYPE = ("grouping", "iid")
+    TEST_TYPE = ("grouping", "noniid", "test")
     TASK_NAME = ("CIFAR", )
 
     def __init__(self,
@@ -29,7 +29,7 @@ class ExpConfig:
         group_num: int=10,
         local_data_num: int=500,
         batch_size: int=32,
-        lr: int=0.01,
+        lr: int=0.001,
         noniid_degree: float=5,
         device: int="cuda",
         datapath: int="./data/",
@@ -48,12 +48,13 @@ class ExpConfig:
         self.local_data_num: int = local_data_num
         self.batch_size: int = batch_size
         self.lr: int = lr
+        self.noniid_degree: float = noniid_degree
         self.datapath: int = datapath
         self.device: int = device
         self.result_dir: str = result_dir
         self.simulation_num: int = simulation_num
         self.simulation_index: int = simulation_index
-        self.noniid_degree: float = noniid_degree
+
 
     def get_class(self):
         if self.task_name == ExpConfig.TASK_NAME[0]:

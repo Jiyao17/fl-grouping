@@ -8,7 +8,7 @@ exp_config = ExpConfig("iid", group_epoch_num=500, local_epoch_num=5,
                 group_size=100, result_dir="./cifar/iid/", simulation_num=1)
 trainset, testset = TaskCIFAR.load_dataset("./data/")
 subsets = dataset_split_r(trainset, 100,
-    500, 5)
+    500, 10)
 
 
 
@@ -30,5 +30,5 @@ for i in range(10):
 
 print(sum)
 
-clients = [ Client(TaskCIFAR(subsets[i], exp_config))
-    for i in range(exp_config.client_num) ]
+# clients = [ Client(TaskCIFAR(subsets[i], exp_config))
+#     for i in range(exp_config.client_num) ]

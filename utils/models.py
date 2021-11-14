@@ -133,12 +133,12 @@ class CIFAR_CNN(nn.Module):
             nn.Conv2d(3, 6, 5),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(6, 16, 5),
+            nn.Conv2d(6, 12, 5),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(16 * 5 * 5 * 4, 160),
+            nn.Linear(12 * 5 * 5 * 4, 120),
             nn.ReLU(),
-            nn.Linear(160, 10),
+            nn.Linear(120, 10),
             nn.ReLU(),
         )
         # self.conv1 = nn.Conv2d(3, 6, 5)
