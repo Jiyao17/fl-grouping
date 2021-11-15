@@ -130,15 +130,22 @@ class CIFAR_CNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(3, 6, 5),
+            nn.Conv2d(3, 16, 3),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(6, 12, 5),
+            nn.Conv2d(16, 96, 3),
             nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Dropout(0.25),
+            nn.Conv2d(96, 256, 3),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Dropout(0.25),
+
             nn.Flatten(),
-            nn.Linear(12 * 5 * 5 * 4, 120),
+            nn.Linear(256 * 2 * 2, 256),
             nn.ReLU(),
-            nn.Linear(120, 10),
+            nn.Linear(256, 10),
             nn.ReLU(),
         )
         # self.conv1 = nn.Conv2d(3, 6, 5)
