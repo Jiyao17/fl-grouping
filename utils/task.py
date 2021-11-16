@@ -36,6 +36,8 @@ class ExpConfig:
         result_dir: str="./cifar/noniid/",
         simulation_num: int=3,
         simulation_index: int=0,
+        log_interval: int=5,
+        comment: str="",
         ) -> None:
         self.task_type: str = test_type
         self.task_name: str = task_name
@@ -55,6 +57,8 @@ class ExpConfig:
         self.simulation_num: int = simulation_num
         self.simulation_index: int = simulation_index
 
+        self.log_interval: int = log_interval
+        self.comment: str = comment
 
     def get_class(self):
         if self.task_name == ExpConfig.TASK_NAME[0]:
@@ -152,6 +156,7 @@ class TaskCIFAR(Task):
         #     shuffle=False)
         self.loss = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9)
+        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.9)
 
     def train_model(self):
         self.model.to(self.config.device)
@@ -167,8 +172,9 @@ class TaskCIFAR(Task):
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-
                 # running_loss += loss.item()
+
+        self.scheduler.step()
 
 
 

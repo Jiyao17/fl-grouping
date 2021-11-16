@@ -2,6 +2,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from torch.nn.modules.flatten import Flatten
 
 
 class FashionMNIST(nn.Module):
@@ -130,20 +131,25 @@ class CIFAR_CNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(3, 16, 3),
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 96, 3),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.25),
-            nn.Conv2d(96, 256, 3),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.25),
 
+            nn.Conv2d(32, 128, 3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Conv2d(128, 256, 3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+
+            nn.Dropout(0.1),
             nn.Flatten(),
-            nn.Linear(256 * 2 * 2, 256),
+
+            nn.Linear(256*4*4, 256),
             nn.ReLU(),
             nn.Linear(256, 10),
             nn.ReLU(),
