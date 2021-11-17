@@ -15,7 +15,7 @@ from utils.models import CIFAR_CNN
 
 
 class ExpConfig:
-    TEST_TYPE = ("grouping", "noniid", "test")
+    TEST_TYPE = ("grouping", "r", "test")
     TASK_NAME = ("CIFAR", )
 
     def __init__(self,
@@ -60,9 +60,15 @@ class ExpConfig:
         self.log_interval: int = log_interval
         self.comment: str = comment
 
-    def get_class(self):
+    def get_task_class(self):
         if self.task_name == ExpConfig.TASK_NAME[0]:
             return TaskCIFAR
+        else:
+            raise "Unspported task"
+
+    def get_model_class(self):
+        if self.task_name == ExpConfig.TASK_NAME[0]:
+            return CIFAR_CNN
         else:
             raise "Unspported task"
 
@@ -83,11 +89,14 @@ class Task:
     def __init__(self, model: nn.Module, trainset: Dataset, config: ExpConfig) -> None:
         self.model: nn.Module = model
         self.trainset = trainset
-        self.config = config
+        self.config = deepcopy(config)
+
+        self.scheduler: optim.lr_scheduler._LRScheduler = None
 
     def set_model(self, model: nn.Module):
         # self.optmizaer
         self.model.load_state_dict(deepcopy(model.state_dict()))
+        self.model.to(self.config.device)
 
     def get_model(self) -> nn.Module:
         return self.model
@@ -163,18 +172,18 @@ class TaskCIFAR(Task):
         self.model.train()
 
         # running_loss = 0
-        for epoch in range(self.config.local_epoch_num):
-            for (samples, lables) in self.trainloader:
 
-                y = self.model(samples.to(self.config.device))
-                loss = self.loss(y, lables.to(self.config.device))
+        for (samples, lables) in self.trainloader:
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-                # running_loss += loss.item()
+            y = self.model(samples.to(self.config.device))
+            loss = self.loss(y, lables.to(self.config.device))
 
-        self.scheduler.step()
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            # running_loss += loss.item()
+
+
 
 
 

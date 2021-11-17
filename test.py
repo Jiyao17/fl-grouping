@@ -10,7 +10,7 @@ trainset, testset = TaskCIFAR.load_dataset("./data/")
 subsets = dataset_split_r(trainset, 100,
     500, 10)
 
-
+print(len(subsets[2]))
 
 # trainset, testset = TaskCIFAR.load_dataset("./data/")
 
