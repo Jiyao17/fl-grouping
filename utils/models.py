@@ -170,3 +170,89 @@ class CIFAR_CNN(nn.Module):
         # x = self.fc3(x)
         x = self.net(x)
         return x
+
+
+class ResBlock(nn.Module):
+    def __init__(self, in_chann, chann, stride):
+        super(ResBlock, self).__init__()
+
+        self.conv1 = nn.Conv2d(in_chann, chann, kernel_size=3, padding=1, stride=stride)
+        self.bn1   = nn.BatchNorm2d(chann)
+        
+        self.conv2 = nn.Conv2d(chann, chann, kernel_size=3, padding=1, stride=1)
+        self.bn2   = nn.BatchNorm2d(chann)
+
+    def forward(self, x):
+        y = self.conv1(x)
+        y = self.bn1(y)
+        y = F.relu(y)
+        
+        y = self.conv2(y)
+        y = self.bn2(y)
+        
+        if (x.shape == y.shape):
+            z = x
+        else:
+            z = F.avg_pool2d(x, kernel_size=2, stride=2)            
+
+            x_channel = x.size(1)
+            y_channel = y.size(1)
+            ch_res = (y_channel - x_channel)//2
+
+            pad = (0, 0, 0, 0, ch_res, ch_res)
+            z = F.pad(z, pad=pad, mode="constant", value=0)
+
+        z = z + y
+        z = F.relu(z)
+        return z
+
+
+class BaseNet(nn.Module):
+    
+    def __init__(self, Block, n):
+        super(BaseNet, self).__init__()
+        self.Block = Block
+        self.conv0 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.bn0   = nn.BatchNorm2d(16)
+        self.convs  = self._make_layers(n)
+        self.avgpool = nn.AvgPool2d(kernel_size=8, stride=1)
+        self.fc = nn.Linear(64, 10)
+
+    def forward(self, x):
+        x = self.conv0(x)
+        x = self.bn0(x)
+        
+        x = F.relu(x)
+        
+        x = self.convs(x)
+        
+        x = self.avgpool(x)
+
+        x = x.view(x.size(0),-1)
+        x = self.fc(x)
+        
+        return x
+
+    def _make_layers(self, n):
+        layers = []
+        in_chann = 16
+        chann = 16
+        stride = 1
+        for i in range(3):
+            for j in range(n):
+                if ((i > 0) and (j == 0)):
+                    in_chann = chann
+                    chann = chann * 2
+                    stride = 2
+
+                layers += [self.Block(in_chann, chann, stride)]
+
+                stride = 1
+                in_chann = chann
+
+        return nn.Sequential(*layers)
+
+
+class CIFARResNet(BaseNet):
+    def __init__(self, n=3):
+        super().__init__(ResBlock, n)

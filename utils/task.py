@@ -10,7 +10,9 @@ import torchvision.transforms as tvtf
 from torch.utils.data.dataset import Dataset
 from torch.utils.data import DataLoader, dataloader
 
-from utils.models import CIFAR_CNN
+from utils.models import CIFARResNet
+
+# Part of code for CIFAR ResNet is copied from https://github.com/itchencheng/pytorch-residual-networks
 
 
 
@@ -68,7 +70,7 @@ class ExpConfig:
 
     def get_model_class(self):
         if self.task_name == ExpConfig.TASK_NAME[0]:
-            return CIFAR_CNN
+            return CIFARResNet
         else:
             raise "Unspported task"
 
@@ -91,6 +93,7 @@ class Task:
         self.trainset = trainset
         self.config = deepcopy(config)
 
+        self.optimizer: optim.Optimizer = None
         self.scheduler: optim.lr_scheduler._LRScheduler = None
 
     def set_model(self, model: nn.Module):
@@ -111,6 +114,7 @@ class Task:
 
 
 class TaskCIFAR(Task):
+    # Part of code for CIFAR ResNet is copied from https://github.com/itchencheng/pytorch-residual-networks
     loss = nn.CrossEntropyLoss()
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
@@ -118,17 +122,30 @@ class TaskCIFAR(Task):
 
     @staticmethod
     def load_dataset(data_path: str, type: str="both"):
-        transform = tvtf.Compose(
-            [tvtf.ToTensor(),
-                tvtf.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        # enhance
+        # Use the torch.transforms, a package on PIL Image.
+        transform_enhanc_func = tvtf.Compose([
+            tvtf.RandomHorizontalFlip(p=0.5),
+            tvtf.RandomCrop(32, padding=4, padding_mode='edge'),
+            tvtf.ToTensor(),
+            tvtf.Lambda(lambda x: x.mul(255)),
+            tvtf.Normalize([125., 123., 114.], [1., 1., 1.])
+            ])
+
+        # transform
+        transform_func = tvtf.Compose([
+            tvtf.ToTensor(),
+            tvtf.Lambda(lambda x: x.mul(255)),
+            tvtf.Normalize([125., 123., 114.], [1., 1., 1.])
+            ])
 
         trainset, testset = None, None
         if type != "test":
             trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
-                download=True, transform=transform)
+                download=True, transform=transform_enhanc_func)
         if type != "train":
             testset = torchvision.datasets.CIFAR10(root=data_path, train=False,
-                download=True, transform=transform)
+                download=True, transform=transform_func)
 
         return (trainset, testset)
 
@@ -157,14 +174,14 @@ class TaskCIFAR(Task):
         return correct, test_loss
 
     def __init__(self, trainset: Dataset, config: ExpConfig) -> None:
-        super().__init__(CIFAR_CNN(), trainset, config)
+        super().__init__(CIFARResNet(), trainset, config)
 
         self.trainloader: DataLoader = DataLoader(self.trainset, batch_size=self.config.batch_size,
             shuffle=True)
         # self.testloader: DataLoader = DataLoader(self.testset, batch_size=512,
         #     shuffle=False)
         self.loss = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9, weight_decay=0.0001)
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.9)
 
     def train_model(self):
