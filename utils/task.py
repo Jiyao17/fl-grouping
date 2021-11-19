@@ -180,9 +180,16 @@ class TaskCIFAR(Task):
             shuffle=True)
         # self.testloader: DataLoader = DataLoader(self.testset, batch_size=512,
         #     shuffle=False)
+        self.lr = self.config.lr
         self.loss = nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9, weight_decay=0.0001)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.9)
+
+        self.round_counter = 0
+        self.decay_period = self.config.group_epoch_num * self.config.local_epoch_num // 2.
+        if self.config.task_type == ExpConfig.TEST_TYPE[0]:
+            # self.decay_period = self.config.global_epoch_num // 2 * self.config.local_epoch_num
+            self.decay_period = self.config.global_epoch_num * self.config.group_epoch_num // 2
 
     def train_model(self):
         self.model.to(self.config.device)
@@ -199,6 +206,16 @@ class TaskCIFAR(Task):
             loss.backward()
             self.optimizer.step()
             # running_loss += loss.item()
+        
+        self.round_counter += 1
+        if self.round_counter == self.decay_period:
+            self.lr /= 10
+            self.optimizer = torch.optim.SGD(self.model.parameters(), 
+                lr=self.lr, momentum=0.9, weight_decay=0.0001)
+            
+            # print("learning rate now is %f" % (self.lr,))
+
+            # self.task.scheduler.step()
 
 
 

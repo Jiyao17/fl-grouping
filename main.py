@@ -25,13 +25,13 @@ if __name__ == "__main__":
         local_data_num=50000, batch_size=50, lr=0.1, noniid_degree=10,
         simulation_num=1, result_dir="./cifar/test/",
         log_interval=5,
-        comment="ResNet, central baseline, decay lr")
+        comment="ResNet, central baseline, cutting lr 2")
 
     # default experimental config for noniid
     noniid = ExpConfig("r", group_epoch_num=100,
                     local_epoch_num=5, client_num=100, group_size=100, group_num=1,
                     local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
-                    simulation_num=3, result_dir="./cifar/noniid/", 
+                    simulation_num=1, result_dir="./cifar/noniid/", 
                     comment="ResNet, noniid r baseline of FedAvg",
                     )
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     iid = ExpConfig("r", group_epoch_num=100,
                     local_epoch_num=5, client_num=100, group_size=100, group_num=1,
                     local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=10, 
-                    simulation_num=1, result_dir="./cifar/test2/", 
+                    simulation_num=3, result_dir="./cifar/iid/", 
                     comment="ResNet, cutting lr, iid baseline of FedAvg",
                     )
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
                     local_epoch_num=1, client_num=100, group_size=10, group_num=10,
                     local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
                     simulation_num=3, result_dir="./cifar/grouping/", 
-                    comment="ResNet, grouping, decay lr, noniid",
+                    comment="ResNet, cutting lr, random grouping, noniid=5",
                     )
     
     improved_grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5,
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                     comment="grouping, decay lr, noniid",
                     )
 
-    exp_config = central
+    exp_config = grouping
 
     sim = Simulator(exp_config)
     sim.start()
