@@ -3,10 +3,11 @@ from argparse import ArgumentParser
 from copy import deepcopy
 from io import TextIOWrapper
 from multiprocessing import Process
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
+
 
 from utils.task import ExpConfig, TaskCIFAR
-from utils.data import dataset_split_r
+from utils.data import dataset_split_r, dataset_split_r_random_distinct, grouping, regroup
 from utils.hierarchy import Client, Group, Global
 
 
@@ -88,26 +89,34 @@ class __SingleSimulator:
         MCLASS = self.config.get_model_class()
         # create hierarchical structure
         trainset, testset = TCLASS.load_dataset(self.config.datapath)
-        subsets = dataset_split_r(trainset, self.config.client_num,
-                    self.config.local_data_num, self.config.noniid_degree)
+        indices_list = dataset_split_r_random_distinct(trainset, 500, 5)
+        groups = grouping(indices_list, trainset.targets, 10)
+        total_data_num = 0
+        for group in groups:
+            total_data_num += len(group)
 
-        clients = [ Client(TCLASS(subsets[i], self.config), self.config)
-            for i in range(self.config.client_num) ]
+        # actually indices for groups
+        groups = regroup(groups, self.config.group_num)
+        # real groups of clients
+        real_groups = []
+        for group in groups:
+            
+            new_group = [ Client(TCLASS(Subset(trainset, client_data), self.config),
+                                    self.config) 
+                            for client_data in group ]
 
-        # form groups
-        counter = 0
-        groups = []
-        for i in range(self.config.group_num):
-            group_clients = []
-            for j in range(self.config.group_size):
-                group_clients.append(clients[counter])
-                counter += 1
-            group = Group(group_clients, self.config, MCLASS())
-            groups.append(group)
+            # form groups
+            group = Group(new_group, self.config, MCLASS())
+            real_groups.append(group)
+
+        # output real configs
+        faccu.write("Total data num = {:.d}, group num = {:.d} \n".format(total_data_num, len(real_groups)))
+        faccu.flush()
+        floss.write("Total data num = {:.d}, group num = {:.d} \n".format(total_data_num, len(real_groups)))
+        floss.flush()
+
         # form global
-        
         global_sys = Global(groups, self.config, MCLASS())
-
         testloader: DataLoader = DataLoader(testset, 500)
         for i in range(self.config.global_epoch_num):
             global_sys.round()

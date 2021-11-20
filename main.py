@@ -44,16 +44,16 @@ if __name__ == "__main__":
                     )
 
     # default experimental config for grouping
-    grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5,
-                    local_epoch_num=1, client_num=100, group_size=10, group_num=10,
-                    local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
+    grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5, local_epoch_num=1, 
+                    local_data_num=500, group_num=10, noniid_degree=5, 
+                    batch_size= 50, lr=0.1, 
                     simulation_num=3, result_dir="./cifar/grouping/", 
                     comment="ResNet, cutting lr, random grouping, noniid=5",
                     )
     
     improved_grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5,
                     local_epoch_num=1, client_num=100, group_size=10, group_num=10,
-                    local_data_num=500, batch_size= 50, lr=0.003, noniid_degree=5, 
+                    local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
                     simulation_num=3, result_dir="./cifar/grouping/", 
                     comment="grouping, decay lr, noniid",
                     )
