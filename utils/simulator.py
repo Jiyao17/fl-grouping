@@ -92,13 +92,15 @@ class __SingleSimulator:
         indices_list = dataset_split_r_random_distinct(trainset, 500, 5)
         groups = grouping(indices_list, trainset.targets, 10)
         total_data_num = 0
-        for group in groups:
-            total_data_num += len(group)
+
 
         # actually indices for groups
         groups = regroup(groups, self.config.group_num)
+        for group in groups:
+            for client_data in group:
+                total_data_num += len(client_data)
         # real groups of clients
-        real_groups = []
+        real_groups: 'list[Group]'= []
         for group in groups:
             
             new_group = [ Client(TCLASS(Subset(trainset, client_data), self.config),
@@ -110,13 +112,15 @@ class __SingleSimulator:
             real_groups.append(group)
 
         # output real configs
-        faccu.write("Total data num = {:.d}, group num = {:.d} \n".format(total_data_num, len(real_groups)))
+        faccu.write("Total data num = {:5d}, group num = {:2d}, group size: {:2d} \n" \
+            .format(total_data_num, len(real_groups), len(real_groups)))
         faccu.flush()
-        floss.write("Total data num = {:.d}, group num = {:.d} \n".format(total_data_num, len(real_groups)))
+        floss.write("Total data num = {:5d}, group num = {:2d}, group size: {:2d} \n" \
+            .format(total_data_num, len(real_groups), len(real_groups)))
         floss.flush()
 
         # form global
-        global_sys = Global(groups, self.config, MCLASS())
+        global_sys = Global(real_groups, self.config, MCLASS())
         testloader: DataLoader = DataLoader(testset, 500)
         for i in range(self.config.global_epoch_num):
             global_sys.round()

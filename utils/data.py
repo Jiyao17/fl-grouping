@@ -136,7 +136,7 @@ def dataset_split_r_random_distinct(dataset: Dataset, subset_size, r: int) \
     return indices_list
 
 def grouping(indices_list: 'list[list[int]]', targets: 'list[int]', out_degree: int) \
-    -> 'list[list[int]]':
+    -> 'list[list[list[int]]]':
     # sets = datasets_to_target_sets(subsets)
     sets: list[set] = []
     for indices in indices_list:
@@ -145,18 +145,18 @@ def grouping(indices_list: 'list[list[int]]', targets: 'list[int]', out_degree: 
             new_set.add(targets[index])
         sets.append(new_set)
 
-    groups: 'list[list[int]]' = []
+    groups: 'list[list[list[int]]]' = []
+    # indicates unions of current groups
     unions: 'list[set[int]]' = []
     # group_labels: set = set()
-    
     more_group = True
     while more_group:
-        new_group = []
+        new_group: 'list[list[int]]' = []
         new_set = set()
         while len(new_set) < out_degree:
             pos = find_next(new_set, sets)
             if pos >= 0:
-                new_group += indices_list[pos]
+                new_group.append(indices_list[pos])
                 new_set = new_set.union(sets[pos])
                 indices_list.pop(pos)
                 sets.pop(pos)
@@ -201,17 +201,19 @@ def find_next(cur_set: set, subunions: 'list[set]') -> bool:
     
     return pos
 
-def regroup(groups: 'list[list[int]]', new_group_num: int):
+def regroup(groups: 'list[list[list[int]]]', new_group_num: int) -> 'list[list[list[int]]]':
 
+    if len(groups) < new_group_num:
+        raise "cannot regroup"
     new_size = len(groups) // new_group_num
-    real_groups: 'list[list[int]]' = []
+    real_groups: 'list[list[list[int]]]' = []
     counter = 0
     for i in range(new_group_num):
-        new_group_indices = []
+        new_group: 'list[list[int]]' = []
         for j in range(new_size):
-            new_group_indices += groups[counter]
+            new_group += groups[counter]
             counter += 1
-        real_groups.append(new_group_indices)
+        real_groups.append(new_group)
 
     for i in range(new_group_num*new_size, len(groups) - 1):
         rand = random.randint(0, len(real_groups) - 1)
