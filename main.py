@@ -28,8 +28,8 @@ if __name__ == "__main__":
         comment="ResNet, central baseline, cutting lr 2")
 
     # default experimental config for noniid
-    noniid = ExpConfig("r", group_epoch_num=100,
-                    local_epoch_num=5, client_num=100, group_size=100, group_num=1,
+    noniid = ExpConfig("r", group_epoch_num=500,
+                    local_epoch_num=1, client_num=100, group_size=100, group_num=1,
                     local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
                     simulation_num=1, result_dir="./cifar/noniid/", 
                     comment="ResNet, noniid r baseline of FedAvg",
@@ -45,18 +45,18 @@ if __name__ == "__main__":
 
     # default experimental config for grouping
     grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5, local_epoch_num=1, 
-                    local_data_num=500, group_num=10, noniid_degree=5, 
+                    local_data_num=500, group_num=6, noniid_degree=5, 
                     batch_size= 50, lr=0.1, 
-                    simulation_num=1, result_dir="./cifar/grouping/", 
+                    simulation_num=1, result_dir="./cifar/test/", 
                     comment="ResNet, cutting lr, random grouping, noniid=5",
                     )
     
-    improved_grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5,
-                    local_epoch_num=1, client_num=100, group_size=10, group_num=10,
-                    local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
-                    simulation_num=3, result_dir="./cifar/grouping/", 
-                    comment="grouping, decay lr, noniid",
-                    )
+    # improved_grouping = ExpConfig("grouping", global_epoch_num=100, group_epoch_num=5,
+    #                 local_epoch_num=1, client_num=100, group_size=10, group_num=10,
+    #                 local_data_num=500, batch_size= 50, lr=0.1, noniid_degree=5, 
+    #                 simulation_num=3, result_dir="./cifar/grouping/", 
+    #                 comment="grouping, decay lr, noniid",
+    #                 )
 
     exp_config = grouping
 

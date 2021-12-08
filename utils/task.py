@@ -12,9 +12,6 @@ from torch.utils.data import DataLoader, dataloader
 
 from utils.models import CIFARResNet
 
-# Part of code for CIFAR ResNet is copied from https://github.com/itchencheng/pytorch-residual-networks
-
-
 
 class ExpConfig:
     TEST_TYPE = ("grouping", "r", "test")
@@ -114,7 +111,6 @@ class Task:
 
 
 class TaskCIFAR(Task):
-    # Part of code for CIFAR ResNet is copied from https://github.com/itchencheng/pytorch-residual-networks
     loss = nn.CrossEntropyLoss()
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer',
@@ -177,7 +173,7 @@ class TaskCIFAR(Task):
         super().__init__(CIFARResNet(), trainset, config)
 
         self.trainloader: DataLoader = DataLoader(self.trainset, batch_size=self.config.batch_size,
-            shuffle=True)
+            shuffle=True, drop_last=True)
         # self.testloader: DataLoader = DataLoader(self.testset, batch_size=512,
         #     shuffle=False)
         self.lr = self.config.lr
@@ -189,7 +185,7 @@ class TaskCIFAR(Task):
         self.decay_period = self.config.group_epoch_num * self.config.local_epoch_num // 2.
         if self.config.task_type == ExpConfig.TEST_TYPE[0]:
             # self.decay_period = self.config.global_epoch_num // 2 * self.config.local_epoch_num
-            self.decay_period = self.config.global_epoch_num * self.config.group_epoch_num // 2
+            self.decay_period = self.config.global_epoch_num * self.config.group_epoch_num * self.config.local_epoch_num // 2
 
     def train_model(self):
         self.model.to(self.config.device)
@@ -197,10 +193,10 @@ class TaskCIFAR(Task):
 
         # running_loss = 0
 
-        for (samples, lables) in self.trainloader:
+        for (image, label) in self.trainloader:
 
-            y = self.model(samples.to(self.config.device))
-            loss = self.loss(y, lables.to(self.config.device))
+            y = self.model(image.to(self.config.device))
+            loss = self.loss(y, label.to(self.config.device))
 
             self.optimizer.zero_grad()
             loss.backward()

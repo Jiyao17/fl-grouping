@@ -4,6 +4,8 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn.modules.flatten import Flatten
 
+# Code for CIFAR ResNet is modified from https://github.com/itchencheng/pytorch-residual-networks
+
 
 class FashionMNIST(nn.Module):
     def __init__(self):

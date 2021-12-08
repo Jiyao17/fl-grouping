@@ -68,9 +68,9 @@ class __SingleSimulator:
         trainset, testset = TCLASS.load_dataset(self.config.datapath)
         subsets = dataset_split_r(trainset, self.config.client_num,
             self.config.local_data_num, self.config.noniid_degree)
-        testloader = DataLoader(testset, 500)
+        testloader = DataLoader(testset, 500, drop_last=True)
 
-        clients = [ Client(TCLASS(subsets[i], self.config), self.config)
+        clients = [ Client(TCLASS(Subset(trainset,subsets[i]), self.config), self.config)
             for i in range(self.config.client_num) ]
 
         group = Group(clients, self.config, MCLASS())
@@ -113,10 +113,10 @@ class __SingleSimulator:
 
         # output real configs
         faccu.write("Total data num = {:5d}, group num = {:2d}, group size: {:2d} \n" \
-            .format(total_data_num, len(real_groups), len(real_groups)))
+            .format(total_data_num, len(real_groups), len(real_groups[0].clients)))
         faccu.flush()
         floss.write("Total data num = {:5d}, group num = {:2d}, group size: {:2d} \n" \
-            .format(total_data_num, len(real_groups), len(real_groups)))
+            .format(total_data_num, len(real_groups), len(real_groups[0].clients)))
         floss.flush()
 
         # form global
