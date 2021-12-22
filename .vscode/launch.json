@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: sim",
+            "type": "python",
+            "request": "launch",
+            "program": "./sim/sim.py",
+            "console": "integratedTerminal",
+            "env": {"CUDA_VISIBLE_DEVICES": "3,"}
+        },
+        {
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
