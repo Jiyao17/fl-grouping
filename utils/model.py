@@ -1,19 +1,14 @@
-#coding:utf-8
-#
-# Plain CNN architectures:
-# Network inputs are 32x32, with perpixel mean substracted.
-#   [3x3 conv + 6n layers + average pool + 10-way fc] 
-#      = (6n+2) parameterized layer.
-# About the 6n layers = 16x32x32(2n-lyr), 32x16x16(2n-lyr), 64x8x8(2n-lyr)
-#
+
 import torch
-import torch.nn as nn
+from torch import nn
+from torch.utils import data
+
+from torch.utils.data import DataLoader
 
 
-class ResBlockA(nn.Module):
-
+class ResBlock(nn.Module):
     def __init__(self, in_chann, chann, stride):
-        super(ResBlockA, self).__init__()
+        super(ResBlock, self).__init__()
 
         self.conv1 = nn.Conv2d(in_chann, chann, kernel_size=3, padding=1, stride=stride)
         self.bn1   = nn.BatchNorm2d(chann)
@@ -24,7 +19,7 @@ class ResBlockA(nn.Module):
     def forward(self, x):
         y = self.conv1(x)
         y = self.bn1(y)
-        y = nn.functional.relu(y)
+        y = F.relu(y)
         
         y = self.conv2(y)
         y = self.bn2(y)
@@ -32,40 +27,18 @@ class ResBlockA(nn.Module):
         if (x.shape == y.shape):
             z = x
         else:
-            z = nn.functional.avg_pool2d(x, kernel_size=2, stride=2)            
+            z = F.avg_pool2d(x, kernel_size=2, stride=2)            
 
             x_channel = x.size(1)
             y_channel = y.size(1)
-            ch_res = (y_channel - x_channel)/2
+            ch_res = (y_channel - x_channel)//2
 
             pad = (0, 0, 0, 0, ch_res, ch_res)
-            z = nn.functional.pad(z, pad=pad, mode="constant", value=0)
+            z = F.pad(z, pad=pad, mode="constant", value=0)
 
         z = z + y
-        z = nn.functional.relu(z)
+        z = F.relu(z)
         return z
-
-
-class PlainBlock(nn.Module):
-
-    def __init__(self, in_chann, chann, stride):
-        super(PlainBlock, self).__init__()
-
-        self.conv1 = nn.Conv2d(in_chann, chann, kernel_size=3, padding=1, stride=stride)
-        self.bn1   = nn.BatchNorm2d(chann)
-        
-        self.conv2 = nn.Conv2d(chann, chann, kernel_size=3, padding=1, stride=1)
-        self.bn2   = nn.BatchNorm2d(chann)
-
-    def forward(self, x):
-        y = self.conv1(x)
-        y = self.bn1(y)
-        y = nn.functional.relu(y)
-        
-        y = self.conv2(y)
-        y = self.bn2(y)
-        y = nn.functional.relu(y)
-        return y
 
 
 class BaseNet(nn.Module):
@@ -82,7 +55,8 @@ class BaseNet(nn.Module):
     def forward(self, x):
         x = self.conv0(x)
         x = self.bn0(x)
-        x = nn.functional.relu(x)
+        
+        x = F.relu(x)
         
         x = self.convs(x)
         
@@ -113,8 +87,33 @@ class BaseNet(nn.Module):
         return nn.Sequential(*layers)
 
 
-def ResNet(n):
-    return BaseNet(ResBlockA, n)
+class CIFARResNet(BaseNet):
+    def __init__(self, n=3):
+        super().__init__(ResBlock, n)
 
-def PlainNet(n):
-    return BaseNet(PlainBlock, n)
+
+def test_model(model: nn.Module, testloader: DataLoader, device: str) \
+        -> 'tuple[float, float]':
+        model.to(device)
+        model.eval()
+
+        loss = nn.CrossEntropyLoss()
+        size = 0
+        correct: float = 0.0
+        test_loss: float = 0.0
+        
+
+        # with torch.no_grad():
+        for samples, labels in testloader:
+            pred = model(samples.to(device))
+            correct += (pred.argmax(1) == labels.to(device)).type(torch.float).sum().item()
+            if loss is not None:
+                test_loss += loss(pred, labels.to(device)).item()
+
+            size += len(samples)
+
+        correct /= 1.0*size
+        test_loss /= 1.0*size
+        return correct, test_loss
+
+
