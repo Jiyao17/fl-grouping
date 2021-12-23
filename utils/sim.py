@@ -7,7 +7,7 @@ import torch
 from torch.utils.data.dataset import Subset
 
 from utils.model import CIFARResNet
-from utils.data import load_dataset, dataset_split_r_random, grouping
+from utils.data import dataset_split_r_random_distinct, load_dataset, grouping
 
 
 
@@ -20,7 +20,7 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
     B: 1*s, bandwidth vector
     """
 
-    indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
+    indexes_list = dataset_split_r_random_distinct(trainset, client_num, data_num_per_client, r)
     d = [ Subset(trainset, indexes) for indexes in indexes_list ]
 
     D = np.random.rand(client_num, server_num) * max_delay
