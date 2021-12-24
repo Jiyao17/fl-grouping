@@ -100,6 +100,8 @@ def dataset_split_r_random(dataset: Dataset, subset_num, subset_size, r: int) \
         while (shard_counter + 1) * shard_size <= len(one_category):
             shards_list.append(one_category[shard_counter*shard_size: (shard_counter+1)*shard_size])
             shard_counter += 1
+        # shards_list.append(one_category[shard_counter*shard_size:])
+
 
     random.shuffle(shards_list)
 
@@ -114,6 +116,11 @@ def dataset_split_r_random(dataset: Dataset, subset_num, subset_size, r: int) \
 
 
 def find_next(cur_set: set, subunions: 'list[set]') -> int:
+    """
+    return the index if can add more categories
+
+    return -1 if cannot add more set
+    """
     max_len = 0
     pos = -1
     for i, subunion in enumerate(subunions):
@@ -140,30 +147,37 @@ def clustering(d: 'list[Subset]', group: 'list[int]') -> 'list[list[int]]':
     # group_labels: set = set()
     targets_set = set(targets)
     while len(sets) > 0:
+        # try to get a new group
         new_group: 'list[list[int]]' = []
         new_set = set()
 
-        while len(new_set) < len(targets_set):
+        pos = find_next(new_set, sets)
+        while pos != -1:
+            new_group.append(group[pos])
+            new_set = new_set.union(sets[pos])
+            group.pop(pos)
+            sets.pop(pos)
+
             pos = find_next(new_set, sets)
-            if pos >= 0:
-                new_group.append(group[pos])
-                new_set = new_set.union(sets[pos])
-                group.pop(pos)
-                sets.pop(pos)
-            else:
-                groups.append(new_group)
-                unions.append(new_set)
+
+        groups.append(new_group)
+        unions.append(new_set)
     # replace index with subset
     # for group in groups:
     #     for i in range(len(group)):
     #         group[i] = subsets[group[i]]
     return groups
 
-def grouping(d: 'list[Subset]', D, B) \
-    -> 'np.ndarray':
+
+def grouping_default(d: 'list[Subset]', D, B) \
+    -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
     """
-    return
+    Assign each client to its nearest server
+    Clustering clients connected to the same server
+    return group and accesory information
     G: grouping matrix
+    A: initial assignment matrix, delay and bandwidth not considered
+    M: g*s, delay, groups to servers
     """
 
     # group clients by delay to servers
@@ -175,17 +189,33 @@ def grouping(d: 'list[Subset]', D, B) \
 
     group_num = 0
     clusters_list = []
+    # cluster clients to the same server
     for group in groups:
         clusters = clustering(d, group)
         clusters_list.append(clusters)
         group_num += len(clusters)
-    G = np.ndarray((d.shape[0], group_num), int)
+
+    # get initial G A M without sufficing l & B
+    G = np.zeros((len(d), group_num), int)
+    A = np.zeros((group_num, B.shape[0]), int)
+    # G_size = np.zeros((group_num,))
+    M = -1 * np.ones((group_num, B.shape[0]))
 
     group_counter = 0
-    for clusters in clusters_list:
+    for server, clusters in enumerate(clusters_list):
         for cluster in clusters:
+            max_delay = -1
             for client in cluster:
                 G[client][group_counter] = 1
+
+                # group delay
+                delay = D[client][server]
+                if delay > max_delay:
+                    max_delay = delay
+
+            A[group_counter][server] = 1
+            # G_size[group_counter] = len(cluster)
+            M[group_counter][server] = max_delay
             group_counter += 1
-    
-    return G
+
+    return G, A, M

@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Subset
 
 
 from utils.task import ExpConfig, TaskCIFAR
-from utils.data import dataset_split_r, dataset_split_r_random_distinct, grouping, regroup
+from utils.data import dataset_split_r, dataset_split_r_random_distinct, grouping_default, regroup
 from utils.hierarchy import Client, Group, Global
 
 
@@ -90,7 +90,7 @@ class __SingleSimulator:
         # create hierarchical structure
         trainset, testset = TCLASS.load_dataset(self.config.datapath)
         indices_list = dataset_split_r_random_distinct(trainset, 500, 5)
-        groups = grouping(indices_list, trainset.targets, 10)
+        groups = grouping_default(indices_list, trainset.targets, 10)
         total_data_num = 0
 
 
