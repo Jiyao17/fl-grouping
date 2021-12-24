@@ -7,7 +7,7 @@ import torch
 from torch.utils.data.dataset import Subset
 
 from utils.model import CIFARResNet
-from utils.data import grouping_default, dataset_split_r_random, get_targets_set, get_targets
+from utils.data import dataset_split_r_random, get_targets_set, get_targets
 
 
 
@@ -50,6 +50,111 @@ def init_models(client_num, device) -> 'tuple[nn.Module, list[nn.Module]]':
 
     return model, models
 
+def find_next(cur_set: set, subunions: 'list[set]') -> int:
+    """
+    return the index if can add more categories
+
+    return -1 if cannot add more set
+    """
+    max_len = 0
+    pos = -1
+    for i, subunion in enumerate(subunions):
+        cur_len = len(subunion.difference(cur_set))
+        if cur_len > max_len:
+            pos = i
+            max_len = cur_len
+    
+    return pos
+
+def clustering(d: 'list[Subset]', group: 'list[int]') -> 'list[list[int]]':
+    # sets = datasets_to_target_sets(subsets)
+    sets: list[set] = []
+    targets = get_targets(d[0].dataset)
+    for client in group:
+        new_set = set()
+        for index in d[client].indices:
+            new_set.add(targets[index])
+        sets.append(new_set)
+
+    groups: 'list[list[int]]' = []
+    # indicates unions of current groups
+    unions: 'list[set[int]]' = []
+    # group_labels: set = set()
+    targets_set = set(targets)
+    while len(sets) > 0:
+        # try to get a new group
+        new_group: 'list[list[int]]' = []
+        new_set = set()
+
+        pos = find_next(new_set, sets)
+        while pos != -1:
+            new_group.append(group[pos])
+            new_set = new_set.union(sets[pos])
+            group.pop(pos)
+            sets.pop(pos)
+
+            pos = find_next(new_set, sets)
+
+        groups.append(new_group)
+        unions.append(new_set)
+    # replace index with subset
+    # for group in groups:
+    #     for i in range(len(group)):
+    #         group[i] = subsets[group[i]]
+    return groups
+
+def grouping_default(d: 'list[Subset]', D) \
+    -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
+    """
+    Assign each client to its nearest server
+    Clustering clients connected to the same server
+    l, B not considered yet
+
+    return group and accesory information
+    G: grouping matrix
+    A: initial assignment matrix, delay and bandwidth not considered
+    M: g*s, delay, groups to servers
+    """
+
+    # group clients by delay to servers
+    groups: list[list[int]] = [ [] for i in range(D.shape[1]) ]
+    # clients to their nearest servers
+    server_indices = np.argmin(D, 1)
+    for i, server in enumerate(server_indices):
+        groups[server].append(i)
+
+    group_num = 0
+    clusters_list = []
+    # cluster clients to the same server
+    for group in groups:
+        clusters = clustering(d, group)
+        clusters_list.append(clusters)
+        group_num += len(clusters)
+
+    # get initial G A M without sufficing l & B
+    G = np.zeros((len(d), group_num), int)
+    A = np.zeros((group_num, D.shape[1]), int)
+    # G_size = np.zeros((group_num,))
+    M = -1 * np.ones((group_num, D.shape[1]))
+
+    group_counter = 0
+    for server, clusters in enumerate(clusters_list):
+        for cluster in clusters:
+            max_delay = -1
+            for client in cluster:
+                G[client][group_counter] = 1
+
+                # group delay
+                delay = D[client][server]
+                if delay > max_delay:
+                    max_delay = delay
+
+            A[group_counter][server] = 1
+            # G_size[group_counter] = len(cluster)
+            M[group_counter][server] = max_delay
+            group_counter += 1
+
+    return G, A, M
 
 
 def group_std(d: 'list[Subset]', G: np.ndarray):
@@ -76,18 +181,21 @@ def group_std(d: 'list[Subset]', G: np.ndarray):
 
     return stds
 
-def group_selection(models: 'list[nn.Module]', model: nn.Module, d, D, l, B, G, A, M) -> np.ndarray:
-    """
-    return
-    G: c*g, grouping matrix
-    A: g*s, group assignment matrix
-    """
+def calc_gradients(models: 'list[nn.Module]', model: nn.Module):
     gradients = np.zeros((len(models),))
     sd_global = model.state_dict()
     for i, model in enumerate(models):
         sd = model.state_dict()
         for key in sd.keys():
             gradients[i] += abs(sd_global[key] - sd[key])
+
+
+def group_selection(models: 'list[nn.Module]', model: nn.Module, d, D, l, B, G, A, M) -> np.ndarray:
+    """
+    return
+    G: c*g, grouping matrix
+    A: g*s, group assignment matrix
+    """
             
 
     # filter for l
@@ -96,7 +204,6 @@ def group_selection(models: 'list[nn.Module]', model: nn.Module, d, D, l, B, G, 
             if M[i][j] > l:
                 A[i][j] = 0
     
-
 def init_group_selection(d, D, l, B, G, A, M) -> np.ndarray:
     """
     return 
@@ -107,8 +214,6 @@ def init_group_selection(d, D, l, B, G, A, M) -> np.ndarray:
         for j, to_server in enumerate(group):
             if M[i][j] > l:
                 A[i][j] = 0
-    
-
 
 def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarray]':
     """

@@ -45,6 +45,7 @@ if __name__ == "__main__":
     testloader = DataLoader(testset, 500, drop_last=True)
 
     G, A = bootstrap(d, D, l, B)
+    
     for i in range(global_epoch_num):
         models, model = global_iter(d, models, G, A)
         G, A = re_assign(d, D, B, models, model)

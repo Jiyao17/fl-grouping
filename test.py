@@ -1,58 +1,59 @@
 
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
 
-from torch.utils.data.dataset import Subset
-from utils.data import dataset_split_r_random, load_dataset
+from utils.sim import init_settings, bootstrap, global_iter, re_assign
+from utils.model import test_model
+from utils.data import load_dataset
 
-trainset, testset = load_dataset("./data/")
-indices_list = dataset_split_r_random(trainset, 2500, 20, 5)
-# print("client num: %d " % (len(indices_list),))
-# print(len(indices_list[-1]))
 
-# groups = grouping(indices_list, trainset.targets, 10)
+if __name__ == "__main__":
+    # make results reproducible
+    np.random.seed(1)
 
-# total_client_num = 0
-# total_data_num = 0
-# for group in groups:
-#     total_client_num += len(group)
-#     for client in group:
-#         total_data_num += len(client)
+    # optimization settings
+    client_num = 2500
+    data_num_per_client = 20
+    r = 5
+    server_num = 10
+    l = 60
+    max_delay = 90
+    max_connection = 500
 
-# print("total client num = %d, total data num = %d" % (total_client_num, total_data_num))
+    # federated learning settings
+    data_path = "../data/"
+    global_epoch_num = 300
+    local_epoch_num = 5
+    learning_rate = 0.1
+    local_batch_size = data_num_per_client
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# # print(len(subsets[2]))
-# groups = regroup(groups, 10)
+    # results
+    log_interval = 1
+    result_file_accu = "./cifar/grouping/accu"
+    result_file_loss = "./cifar/grouping/loss"
 
-# trainset, testset = TaskCIFAR.load_dataset("./data/")
+    # initialize result file IO wrappers
+    faccu = open(result_file_accu, "a")
+    floss = open(result_file_loss, "a")
 
-# subsets = dataset_split_r(trainset, 100, 100, 3)
 
-client_lable_list = []
-client_indices = indices_list[0]
-subset = Subset(trainset, client_indices)
+    trainset, testset = load_dataset(data_path, "both")
+    d, D, B = init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection)
+    # model, models = init_models(client_num, device)
+    testloader = DataLoader(testset, 500, drop_last=True)
+
+    G, A = bootstrap(d, D, l, B)
     
-for (sample, lable) in subset:
-    client_lable_list.append(lable)
+    for i in range(global_epoch_num):
+        models, model = global_iter(d, models, G, A)
+        G, A = re_assign(d, D, B, models, model)
 
-print(client_lable_list)
-
-
-# for indices in indices_list:
-#     group_lable_list = []
-#     for client_data in group:
-#         subset = Subset(trainset, client_data)
-        
-#         for (sample, lable) in subset:
-#             group_lable_list.append(lable)
-
-#         # print(lable_list)
-#     sum = 0
-#     for i in range(10):
-#         count = group_lable_list.count(i)
-#         print(count, end=" ")
-#         sum += count
-#     print(sum)
-# s = subsets_to_target_set(subsets[0:3])
-
-# print(s)
-
+        if i + 1 % log_interval == 0:
+            accu, loss = test_model(model, testloader, device)
+            faccu.write("{:.5f} ".format(accu))
+            faccu.flush()
+            floss.write("{:.5f} ".format(loss))
+            floss.flush()
 
