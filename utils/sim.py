@@ -1,5 +1,4 @@
 
-from _typeshed import FileDescriptor
 from copy import deepcopy
 
 from torch import nn
@@ -192,8 +191,8 @@ def calc_dists(models: 'list[nn.Module]', model: nn.Module) -> np.ndarray:
     sd_global = model.state_dict()
     for i, model in enumerate(models):
         sd = model.state_dict()
-        for key in sd.keys():
-            dists[i] += abs(sd_global[key] - sd[key])
+        for x, y in zip(sd.values(), sd_global.values()):
+            dists[i] += (x - y).abs().sum()
 
     return dists
 
@@ -206,6 +205,8 @@ def calc_dists_by_group(models: 'list[nn.Module]', model: nn.Module, G)-> np.nda
         for j, to_server in enumerate(G[i]):
             if G[i][j] == 1:
                 dists_group[j] += dist
+    
+    return dists_group
 
 def filter_delay(M, A, l):
     for i, group in enumerate(M):
@@ -253,7 +254,7 @@ def group_selection(models: 'list[nn.Module]', model: nn.Module, d, l, B, G, M) 
 
     Q = dists - stds
     rank = [ i for i in range(Q.shape[0])]
-    Q_sorted = sorted(zip(rank, Q))
+    Q_sorted = sorted(zip(Q, rank)).reverse()
 
     # filter for B
     # group size
