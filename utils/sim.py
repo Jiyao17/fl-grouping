@@ -1,4 +1,5 @@
 
+from _typeshed import FileDescriptor
 from copy import deepcopy
 
 from torch import nn
@@ -135,7 +136,7 @@ def grouping_default(d: 'list[Subset]', D) \
     G = np.zeros((len(d), group_num), int)
     A = np.zeros((group_num, D.shape[1]), int)
     # G_size = np.zeros((group_num,))
-    M = -1 * np.ones((group_num, D.shape[1]))
+    # M = -1 * np.ones((group_num, D.shape[1]))
 
     group_counter = 0
     for server, clusters in enumerate(clusters_list):
@@ -145,19 +146,20 @@ def grouping_default(d: 'list[Subset]', D) \
                 G[client][group_counter] = 1
 
                 # group delay
-                delay = D[client][server]
-                if delay > max_delay:
-                    max_delay = delay
+                # delay = D[client][server]
+                # if delay > max_delay:
+                #     max_delay = delay
 
             A[group_counter][server] = 1
             # G_size[group_counter] = len(cluster)
-            M[group_counter][server] = max_delay
+            # M[group_counter][server] = max_delay
             group_counter += 1
+    
+    M = calc_group_delay(D, G)
 
-    return G, A, M
+    return G, M
 
-
-def group_std(d: 'list[Subset]', G: np.ndarray):
+def calc_stds(d: 'list[Subset]', G: np.ndarray) -> np.ndarray:
     """
     return 
     std of number of all data in groups
@@ -181,51 +183,120 @@ def group_std(d: 'list[Subset]', G: np.ndarray):
 
     return stds
 
-def calc_gradients(models: 'list[nn.Module]', model: nn.Module):
-    gradients = np.zeros((len(models),))
+def calc_dists(models: 'list[nn.Module]', model: nn.Module) -> np.ndarray:
+    """
+    return
+    1-norm of gradients
+    """
+    dists = np.zeros((len(models),))
     sd_global = model.state_dict()
     for i, model in enumerate(models):
         sd = model.state_dict()
         for key in sd.keys():
-            gradients[i] += abs(sd_global[key] - sd[key])
+            dists[i] += abs(sd_global[key] - sd[key])
 
+    return dists
 
-def group_selection(models: 'list[nn.Module]', model: nn.Module, d, D, l, B, G, A, M) -> np.ndarray:
-    """
-    return
-    G: c*g, grouping matrix
-    A: g*s, group assignment matrix
-    """
-            
+def calc_dists_by_group(models: 'list[nn.Module]', model: nn.Module, G)-> np.ndarray:
+    dists = calc_dists(models, model)
 
-    # filter for l
+    dists_group = np.zeros((G.shape[1]))
+
+    for i, dist in enumerate(dists):
+        for j, to_server in enumerate(G[i]):
+            if G[i][j] == 1:
+                dists_group[j] += dist
+
+def filter_delay(M, A, l):
     for i, group in enumerate(M):
         for j, to_server in enumerate(group):
             if M[i][j] > l:
                 A[i][j] = 0
     
-def init_group_selection(d, D, l, B, G, A, M) -> np.ndarray:
-    """
-    return 
-    A: g*s, initial group assignment matrix
-    """
-    # filter for l
+    return A
+
+def calc_group_delay(D, G):
+    M = np.zeros((G.shape[1], D.shape[1]))
+
+    # get clients in each group
+    grouping = [ [] for i in range(G.shape[1])]
+    for i, client in enumerate(G):
+        for j, to_group in enumerate(client):
+            if G[i][j] == 1:
+                grouping[j].append(i)
+
     for i, group in enumerate(M):
         for j, to_server in enumerate(group):
-            if M[i][j] > l:
+            # get group i delay to server j
+            max_delay = 0
+            for client in grouping[i]:
+                if D[client][j] > max_delay:
+                    max_delay = D[client][j]
+            M[i][j] = max_delay
+
+    return M
+
+# def rank_groups()
+
+def group_selection(models: 'list[nn.Module]', model: nn.Module, d, l, B, G, M) -> np.ndarray:
+    """
+    return
+    A: g*s, group assignment matrix
+    """
+
+    # filter for l
+    # A = filter_delay(M, A, l)
+
+    # rank groups
+    dists = calc_dists_by_group(models, model, G)
+    stds = calc_stds(d, G)
+
+    Q = dists - stds
+    rank = [ i for i in range(Q.shape[0])]
+    Q_sorted = sorted(zip(rank, Q))
+
+    # filter for B
+    # group size
+    G_size = np.zeros((G.shape[1],))
+    for i, client in enumerate(G):
+        for j, to_group in enumerate(client):
+            if G[i][j] == 1:
+                G_size[j] += 1
+
+    B_temp = np.zeros((B.shape[0],))
+    A = np.zeros(M.shape)
+    for i, group in enumerate(Q_sorted):
+        for j, to_server in enumerate(A[i]):
+            if B_temp[j] + G_size[i] <= B[j] and M[i][j] <= l:
+                B_temp[j] += G_size[i]
+                A[i][j] = 1
+            else:
                 A[i][j] = 0
+
+    return A
+
+    
+# def init_group_selection(d, D, l, B, G, A, M) -> np.ndarray:
+#     """
+#     return 
+#     A: g*s, initial group assignment matrix
+#     """
+#     # filter for l
+#     for i, group in enumerate(M):
+#         for j, to_server in enumerate(group):
+#             if M[i][j] > l:
+#                 A[i][j] = 0
 
 def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarray]':
     """
     return initial
     G: c*g, grouping matrix
-    A: g*s, group assignment matrix
+    M: g*s, group delay matrix
     """
 
-    G, A, M = grouping_default(d, D, B)
-    A = init_group_selection(d, D, l, B, G, A, M)
+    G, M = grouping_default(d, D)
 
-    return G, A
+    return G, M
 
 def global_iter(d: list, models: 'list[nn.Module]', G: np.ndarray, A: np.ndarray) \
     -> 'tuple[list[nn.Module], nn.Module]':
