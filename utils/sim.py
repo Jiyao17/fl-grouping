@@ -40,13 +40,13 @@ def init_models(client_num, device) -> 'tuple[nn.Module, list[nn.Module]]':
     """
  
     model: nn.Module = CIFARResNet()
-    model.to(device)
     # models on all clients
-    models: 'list[nn.Module]' = [ model ] * client_num
-    for model in models:
-        new_model = deepcopy(model.state_dict())
-        model.load_state_dict(new_model)
-        # model.to(device)
+    models: 'list[nn.Module]' = []
+    for i in range(client_num):
+        new_model = CIFARResNet()
+        sd = deepcopy(model.state_dict())
+        new_model.load_state_dict(sd)
+        models.append(new_model)
 
     return model, models
 
@@ -239,7 +239,7 @@ def calc_group_delay(D, G):
 
 # def rank_groups()
 
-def group_selection(models: 'list[nn.Module]', model: nn.Module, d, l, B, G, M) -> np.ndarray:
+def group_selection(model: nn.Module, models: 'list[nn.Module]', d, l, B, G, M) -> np.ndarray:
     """
     return
     A: g*s, group assignment matrix
@@ -253,8 +253,9 @@ def group_selection(models: 'list[nn.Module]', model: nn.Module, d, l, B, G, M) 
     stds = calc_stds(d, G)
 
     Q = dists - stds
-    rank = [ i for i in range(Q.shape[0])]
-    Q_sorted = sorted(zip(Q, rank)).reverse()
+    seq = [ i for i in range(Q.shape[0])]
+    Q_sorted = sorted(zip(Q, seq))
+    Q_sorted.reverse()
 
     # filter for B
     # group size
@@ -266,13 +267,15 @@ def group_selection(models: 'list[nn.Module]', model: nn.Module, d, l, B, G, M) 
 
     B_temp = np.zeros((B.shape[0],))
     A = np.zeros(M.shape)
-    for i, group in enumerate(Q_sorted):
-        for j, to_server in enumerate(A[i]):
-            if B_temp[j] + G_size[i] <= B[j] and M[i][j] <= l:
-                B_temp[j] += G_size[i]
-                A[i][j] = 1
+    group_assigned = np.zeros(A.shape[0])
+    for (quality, seq) in Q_sorted:
+        for j, to_server in enumerate(A[seq]):
+            if B_temp[j] + G_size[seq] <= B[j] and M[seq][j] <= l and group_assigned[seq] == 0:
+                B_temp[j] += G_size[seq]
+                A[seq][j] = 1
+                group_assigned[seq] = 1
             else:
-                A[i][j] = 0
+                A[seq][j] = 0
 
     return A
 
@@ -299,14 +302,36 @@ def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarr
 
     return G, M
 
-def global_iter(d: list, models: 'list[nn.Module]', G: np.ndarray, A: np.ndarray) \
-    -> 'tuple[list[nn.Module], nn.Module]':
+
+def group_train(d: list, models: 'list[nn.Module]', G: np.ndarray, group_epoch_num: int) \
+    -> 'list[nn.Module]':
+    
+    
+    return models
+
+def global_aggregate(model, models: 'list[nn.Module]', G: np.ndarray, A: np.ndarray) -> nn.Module:
+
+    return 
+
+def global_iter(model: nn.Module, models: 'list[nn.Module]', d: list,  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
+    -> 'tuple[nn.Module, list[nn.Module]]':
     """
     return
     models: 1*c, new models on clients
     model: new global model
     """
-    pass
+    # get selected groups in this round
+    selected_groups: list[int] = []
+    for i, group in enumerate(A):
+        if np.max[A[i]] == 1:
+            selected_groups.append[i]
+
+    for i, group in enumerate(selected_groups):
+        group_train(d, models, G, group_epoch_num)
+    
+    global_aggregate(model, models, G, A)
+
+    return model, models
 
 def re_assign(d: list, D: np.ndarray, B: list, models, model)-> 'tuple[np.ndarray, np.ndarray]':
     """

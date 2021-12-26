@@ -47,9 +47,9 @@ if __name__ == "__main__":
     G, M = bootstrap(d, D, l, B)
     
     for i in range(global_epoch_num):
-        A = group_selection(models, model, d, l, B, G, M)
+        A = group_selection(model, models, d, l, B, G, M)
 
-        models, model = global_iter(d, models, G, A)
+        model, models = global_iter(model, models, d, G, A)
         # G, A = re_assign(d, D, B, models, model)
 
         if i + 1 % log_interval == 0:
