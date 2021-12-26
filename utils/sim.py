@@ -303,9 +303,13 @@ def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarr
     return G, M
 
 
+def group_iter(models, group)
+
+
 def group_train(d: list, models: 'list[nn.Module]', G: np.ndarray, group_epoch_num: int) \
     -> 'list[nn.Module]':
     
+
     
     return models
 
