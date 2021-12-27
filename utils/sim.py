@@ -4,11 +4,46 @@ from copy import deepcopy
 from torch import nn
 import numpy as np
 import torch
+from torch.utils.data import dataset
 from torch.utils.data.dataset import Subset
+from torch.utils.data import DataLoader
 
 from utils.model import CIFARResNet
 from utils.data import dataset_split_r_random, get_targets_set, get_targets
 
+class Client:
+    def __init__(
+        self, model: nn.Module, 
+        trainset: Subset, 
+        lr: float, 
+        device: str="cpu", 
+        batch_size: int=0, 
+        loss=nn.CrossEntropyLoss()
+        ) -> None:
+
+        self.model = model
+        self.trainset = trainset
+        self.lr = lr
+        self.device = device
+        self.batch_size = batch_size if batch_size != 0 else len(trainset.indices)
+        self.loss = loss
+
+        self.trainloader = DataLoader(self.trainset, self.batch_size, True, drop_last=True)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
+
+
+    def train(self):
+        self.model.to(self.device)
+        self.model.train()
+
+        for (image, label) in self.trainloader:
+
+            y = self.model(image.to(self.device))
+            loss = self.loss(y, label.to(self.device))
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
 
 def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection) \
@@ -32,7 +67,7 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
 
     return d, D, B
 
-def init_models(client_num, device) -> 'tuple[nn.Module, list[nn.Module]]':
+def init_clients(d, client_num, device) -> 'tuple[nn.Module, list[nn.Module]]':
     """
     return
     model: global model
@@ -302,15 +337,28 @@ def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarr
 
     return G, M
 
-
-def group_iter(models, group)
-
-
-def group_train(d: list, models: 'list[nn.Module]', G: np.ndarray, group_epoch_num: int) \
+def group_train(d: 'list[Subset]', models: 'list[nn.Module]', group: 'list[int]', group_epoch_num: int) \
     -> 'list[nn.Module]':
-    
 
-    
+    for i in range(group_epoch_num):
+        # group_single_train(models, group)
+        for client in group:
+            model = models[client]
+            trainset = d[client]
+            trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
+            model.to("cuda")
+            model.train()
+
+            for (image, label) in trainloader:
+
+                y = model(image.to("cuda"))
+                loss = nn.CrossEntropyLoss(y, label.to("cuda"))
+                optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0001)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
     return models
 
 def global_aggregate(model, models: 'list[nn.Module]', G: np.ndarray, A: np.ndarray) -> nn.Module:
@@ -331,7 +379,7 @@ def global_iter(model: nn.Module, models: 'list[nn.Module]', d: list,  G: np.nda
             selected_groups.append[i]
 
     for i, group in enumerate(selected_groups):
-        group_train(d, models, G, group_epoch_num)
+        group_train(d, models, group, group_epoch_num)
     
     global_aggregate(model, models, G, A)
 

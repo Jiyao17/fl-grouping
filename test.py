@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from utils.sim import group_selection, init_settings, bootstrap, global_iter, re_assign, init_models
+from utils.sim import group_selection, init_clients, init_settings, bootstrap, global_iter
 from utils.model import test_model
 from utils.data import load_dataset
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     trainset, testset = load_dataset(data_path, "both")
     d, D, B = init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection)
-    model, models = init_models(client_num, device)
+    model, models = init_clients(client_num, device)
     testloader = DataLoader(testset, 500, drop_last=True)
 
     G, M = bootstrap(d, D, l, B)
