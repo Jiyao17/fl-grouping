@@ -67,23 +67,25 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
 
     return d, D, B
 
-def init_clients(d, client_num, device) -> 'tuple[nn.Module, list[nn.Module]]':
+def init_clients(d: 'list[Subset]', lr, device, loss=nn.CrossEntropyLoss()) \
+    -> 'tuple[nn.Module, list[Client]]':
     """
     return
     model: global model
     models: models on clients
     """
- 
+    clients: 'list[Client]' = []
+    client_num = len(d)
     model: nn.Module = CIFARResNet()
-    # models on all clients
-    models: 'list[nn.Module]' = []
     for i in range(client_num):
         new_model = CIFARResNet()
         sd = deepcopy(model.state_dict())
         new_model.load_state_dict(sd)
-        models.append(new_model)
 
-    return model, models
+        batch_size = len(d[i])
+        clients.append(Client(new_model, d[i], lr, device, batch_size, loss))
+
+    return model, clients
 
 def find_next(cur_set: set, subunions: 'list[set]') -> int:
     """
@@ -243,15 +245,7 @@ def calc_dists_by_group(models: 'list[nn.Module]', model: nn.Module, G)-> np.nda
     
     return dists_group
 
-def filter_delay(M, A, l):
-    for i, group in enumerate(M):
-        for j, to_server in enumerate(group):
-            if M[i][j] > l:
-                A[i][j] = 0
-    
-    return A
-
-def calc_group_delay(D, G):
+def calc_group_delay(D, G) -> np.ndarray:
     M = np.zeros((G.shape[1], D.shape[1]))
 
     # get clients in each group
@@ -272,9 +266,7 @@ def calc_group_delay(D, G):
 
     return M
 
-# def rank_groups()
-
-def group_selection(model: nn.Module, models: 'list[nn.Module]', d, l, B, G, M) -> np.ndarray:
+def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np.ndarray:
     """
     return
     A: g*s, group assignment matrix
@@ -284,6 +276,12 @@ def group_selection(model: nn.Module, models: 'list[nn.Module]', d, l, B, G, M) 
     # A = filter_delay(M, A, l)
 
     # rank groups
+    models = []
+    d = []
+    for client in clients:
+        models.append(client.model)
+        d.append(client.trainset)
+
     dists = calc_dists_by_group(models, model, G)
     stds = calc_stds(d, G)
 
@@ -314,18 +312,6 @@ def group_selection(model: nn.Module, models: 'list[nn.Module]', d, l, B, G, M) 
 
     return A
 
-    
-# def init_group_selection(d, D, l, B, G, A, M) -> np.ndarray:
-#     """
-#     return 
-#     A: g*s, initial group assignment matrix
-#     """
-#     # filter for l
-#     for i, group in enumerate(M):
-#         for j, to_server in enumerate(group):
-#             if M[i][j] > l:
-#                 A[i][j] = 0
-
 def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarray]':
     """
     return initial
@@ -337,61 +323,132 @@ def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarr
 
     return G, M
 
-def group_train(d: 'list[Subset]', models: 'list[nn.Module]', group: 'list[int]', group_epoch_num: int) \
-    -> 'list[nn.Module]':
+def get_groups_size(clients: 'list[Client]', G: np.ndarray) -> 'list[int]':
+    G_size: list[int] = [ 0 for i in range(G.shape[1])]
+    G_T = G.transpose()
+    for i, group in enumerate(G_T):
+        for j, include_client in enumerate(group):
+            if include_client == 1:
+                G_size[i] += len(clients[j].trainset.indices)
+
+    return G_size
+
+def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
+
+    # get clients size
+    C_size = []
+    for index in group:
+        size = len(clients[index].trainset.indices)
+        C_size.append(size)
+    data_num_sum = sum(C_size)
+
+    # get state dicts
+    state_dicts = []
+    for index in group:
+        client = clients[index]
+        state_dicts.append(client.model.state_dict())
+
+    # calculate average model
+    state_dict_avg = deepcopy(state_dicts[0]) 
+    for key in state_dict_avg.keys():
+        state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+    for key in state_dict_avg.keys():
+        for i in range(len(state_dicts)):
+            state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
+        # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
+    
+    # update all clients in this group
+    selected_clients: list[Client] = [clients[i] for i in group]
+    for i, client in enumerate(selected_clients):
+        new_sd = deepcopy(state_dicts[i])
+        client.model.load_state_dict(new_sd)
+
+def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_num: int):
 
     for i in range(group_epoch_num):
         # group_single_train(models, group)
         for client in group:
-            model = models[client]
-            trainset = d[client]
+            model = clients[client].model
+            trainset = clients[client].trainset
+            device = clients[client].device
+            loss_fn = clients[client].loss
+
             trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
-            model.to("cuda")
+            model.to(device)
             model.train()
 
             for (image, label) in trainloader:
 
-                y = model(image.to("cuda"))
-                loss = nn.CrossEntropyLoss(y, label.to("cuda"))
+                y = model(image.to(device))
+                loss = loss_fn(y, label.to(device))
                 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0001)
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+    
+    group_aggregation()
 
-    return models
+def global_aggregate(clients: 'list[Client]', G, A) -> nn.Module:
+    G_size = get_groups_size(clients, G)
+    data_num_sum = sum(G_size)
+        
+    state_dicts = []
+    for i, client in enumerate(clients):
+        if selected_flags[i] == 1:
+            state_dicts.append(client.model.state_dict())
 
-def global_aggregate(model, models: 'list[nn.Module]', G: np.ndarray, A: np.ndarray) -> nn.Module:
+    # calculate average model
+    state_dict_avg = deepcopy(state_dicts[0]) 
+    for key in state_dict_avg.keys():
+        state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+
+    for key in state_dict_avg.keys():
+        for i in range(len(state_dicts)):
+            state_dict_avg[key] += state_dicts[i][key] * (self.weights[i] / self.weights_sum)
+        # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
+    
+    self.model.load_state_dict(state_dict_avg)
+    self.model.to(self.config.device)
+
+    for i, client in enumerate(clients):
 
     return 
 
-def global_iter(model: nn.Module, models: 'list[nn.Module]', d: list,  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
+def groups_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
     -> 'tuple[nn.Module, list[nn.Module]]':
     """
     return
-    models: 1*c, new models on clients
     model: new global model
     """
+    models = []
+    d = []
+    for client in clients:
+        models.append(client.model)
+        d.append(client.trainset)
     # get selected groups in this round
-    selected_groups: list[int] = []
-    for i, group in enumerate(A):
-        if np.max[A[i]] == 1:
-            selected_groups.append[i]
+    selected_flags: np.ndarray = np.max(A, axis=1)
+    selected_groups: list[list[int]] = []
+    G_size: list[int] = [ 0 for i in range(A.shape[0])]
+    G_T = G.transpose()
+    for i, selected in enumerate(selected_flags):
+        if selected == 1:
+            new_group = []
+            for j, client in enumerate(G_T[i]):
+                if client == 1:
+                    new_group.append(j)
+                    G_size[i] += len(clients[j].trainset.indices)
+
+            selected_groups.append(new_group)
 
     for i, group in enumerate(selected_groups):
-        group_train(d, models, group, group_epoch_num)
+        single_group_train(clients, group, group_epoch_num)
     
-    global_aggregate(model, models, G, A)
+    model = global_aggregate(clients, selected_flags)
 
     return model, models
 
-def re_assign(d: list, D: np.ndarray, B: list, models, model)-> 'tuple[np.ndarray, np.ndarray]':
-    """
-    return the next
-    G: c*g
-    A: g*s
-    """
-    pass
+
 
 
 

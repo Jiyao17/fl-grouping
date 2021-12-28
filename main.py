@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from utils.sim import init_settings, init_models, bootstrap, global_iter, re_assign
+from utils.sim import init_settings, init_models, bootstrap, groups_train, re_assign
 from utils.model import test_model
 from utils.data import load_dataset
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     G, A = bootstrap(d, D, l, B)
     
     for i in range(global_epoch_num):
-        models, model = global_iter(d, models, G, A)
+        models, model = groups_train(d, models, G, A)
         G, A = re_assign(d, D, B, models, model)
 
         if i + 1 % log_interval == 0:
