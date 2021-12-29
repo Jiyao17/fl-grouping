@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 import random
 
-from utils.sim import group_selection, init_clients, init_settings, bootstrap, groups_train
+from utils.sim import group_selection, init_clients, init_settings, bootstrap, global_train
 from utils.model import test_model
 from utils.data import load_dataset
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     for i in range(global_epoch_num):
         A = group_selection(model, clients, l, B, G, M)
 
-        model = groups_train(model, clients, G, A, group_epoch_num)
+        model = global_train(model, clients, G, A, group_epoch_num)
         # G, A = re_assign(d, D, B, models, model)
 
         if (i + 1) % log_interval == 0:
