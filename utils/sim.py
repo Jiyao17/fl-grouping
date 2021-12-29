@@ -195,11 +195,15 @@ def grouping_default(d: 'list[Subset]', D) \
 
     return G, M
 
-def calc_stds(d: 'list[Subset]', G: np.ndarray) -> np.ndarray:
+def calc_stds(clients: 'list[Client]', G: np.ndarray) -> np.ndarray:
     """
     return 
     std of number of all data in groups
     """
+    d = []
+    for client in clients:
+        d.append(client.trainset)
+
     stds = np.zeros((G.shape[1],))
     label_num = len(get_targets_set(d[0].dataset))
     label_list = np.zeros((G.shape[1], label_num))
@@ -219,28 +223,29 @@ def calc_stds(d: 'list[Subset]', G: np.ndarray) -> np.ndarray:
 
     return stds
 
-def calc_dists(models: 'list[nn.Module]', model: nn.Module) -> np.ndarray:
+def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
     """
     return
     1-norm of gradients
     """
-    dists = np.zeros((len(models),))
-    sd_global = model.state_dict()
-    for i, model in enumerate(models):
-        sd = model.state_dict()
-        for x, y in zip(sd.values(), sd_global.values()):
-            dists[i] += (x - y).abs().sum()
+    model.to(device)
+    global_model.to(device)
+    sd_global = global_model.state_dict()
+    sd = model.state_dict()
 
-    return dists
+    dist = 0
+    for x, y in zip(sd.values(), sd_global.values()):
+        dist += (x - y).abs().sum()
 
-def calc_dists_by_group(models: 'list[nn.Module]', model: nn.Module, G)-> np.ndarray:
-    dists = calc_dists(models, model)
+    return dist
 
+def calc_dists_by_group(clients: 'list[Client]', model: nn.Module, G)-> np.ndarray:
     dists_group = np.zeros((G.shape[1]))
 
-    for i, dist in enumerate(dists):
+    for i, dist in enumerate(G):
         for j, to_server in enumerate(G[i]):
             if G[i][j] == 1:
+                dist = calc_dist(clients[i].model, model, clients[i].device)
                 dists_group[j] += dist
     
     return dists_group
@@ -276,14 +281,9 @@ def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np
     # A = filter_delay(M, A, l)
 
     # rank groups
-    models = []
-    d = []
-    for client in clients:
-        models.append(client.model)
-        d.append(client.trainset)
 
-    dists = calc_dists_by_group(models, model, G)
-    stds = calc_stds(d, G)
+    dists = calc_dists_by_group(clients, model, G)
+    stds = calc_stds(clients, G)
 
     Q = dists - stds
     seq = [ i for i in range(Q.shape[0])]
@@ -311,17 +311,6 @@ def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np
                 A[seq][j] = 0
 
     return A
-
-def bootstrap(d: list, D: np.ndarray, l, B: list) -> 'tuple[np.ndarray, np.ndarray]':
-    """
-    return initial
-    G: c*g, grouping matrix
-    M: g*s, group delay matrix
-    """
-
-    G, M = grouping_default(d, D)
-
-    return G, M
 
 def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
 
@@ -404,7 +393,9 @@ def global_aggregate(model: nn.Module, clients: 'list[Client]', G, A) -> nn.Modu
 
     state_dicts = []
     for group in enumerate(selected_groups):
-            state_dicts.append(clients[group[0]].model.state_dict())
+        client = clients[group[0]]
+        model = client.model.to(client.device)
+        state_dicts.append(model.state_dict())
 
     # calculate average model
     state_dict_avg = deepcopy(state_dicts[0]) 
@@ -419,6 +410,11 @@ def global_aggregate(model: nn.Module, clients: 'list[Client]', G, A) -> nn.Modu
     model.load_state_dict(state_dict_avg)
     return model
 
+def global_distribute(model: nn.Module, clients: 'list[Client]') -> None:
+    for client in clients:
+        new_sd = deepcopy(model.state_dict())
+        client.model.load_state_dict(new_sd)
+
 def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
     -> 'tuple[nn.Module, list[nn.Module]]':
     """
@@ -426,11 +422,14 @@ def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: n
     model: new global model
     """
     selected_groups, G_size = get_selected_groups(clients, G, A)
+
+    global_distribute(model, clients)
     
     for i, group in enumerate(selected_groups):
         single_group_train(clients, group, group_epoch_num)
     
-    model = global_aggregate(clients, G, A)
+    model = global_aggregate(model, clients, G, A)
+
 
     return model
 

@@ -91,16 +91,15 @@ class CIFARResNet(BaseNet):
         super().__init__(ResBlock, n)
 
 
-def test_model(model: nn.Module, testloader: DataLoader, device: str) \
+def test_model(model: nn.Module, testloader: DataLoader, device: str, loss_fn=nn.CrossEntropyLoss()) \
         -> 'tuple[float, float]':
         model.to(device)
         model.eval()
 
-        loss = nn.CrossEntropyLoss()
+        loss = loss_fn
         size = 0
         correct: float = 0.0
         test_loss: float = 0.0
-        
 
         # with torch.no_grad():
         for samples, labels in testloader:

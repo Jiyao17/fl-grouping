@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 import random
 
-from utils.sim import group_selection, init_clients, init_settings, bootstrap, global_train
+from utils.sim import group_selection, init_clients, init_settings, grouping_default, global_train
 from utils.model import test_model
 from utils.data import load_dataset
 
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # results
-    log_interval = 1
+    log_interval = 5
     result_file_accu = "./cifar/grouping/accu"
     result_file_loss = "./cifar/grouping/loss"
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     model, clients = init_clients(d, learning_rate, device)
     testloader = DataLoader(testset, 500, drop_last=True)
 
-    G, M = bootstrap(d, D, l, B)
+    G, M = grouping_default(d, D)
     
     for i in range(global_epoch_num):
         A = group_selection(model, clients, l, B, G, M)
@@ -60,4 +60,6 @@ if __name__ == "__main__":
             faccu.flush()
             floss.write("{:.5f} ".format(loss))
             floss.flush()
+
+            print("accuracy and loss at round %d: %.5f, %.5f" % (i, accu, loss))
 
