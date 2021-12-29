@@ -13,13 +13,13 @@ if __name__ == "__main__":
     np.random.seed(1)
 
     # optimization settings
-    client_num = 2500
-    data_num_per_client = 20
+    client_num = 100
+    data_num_per_client = 500
     r = 5
     server_num = 10
     l = 60
     max_delay = 90
-    max_connection = 500
+    max_connection = 30
 
     # federated learning settings
     data_path = "../data/"

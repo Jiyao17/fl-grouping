@@ -8,6 +8,48 @@ from utils.sim import group_selection, init_clients, init_settings, grouping_def
 from utils.model import test_model
 from utils.data import load_dataset
 
+class Config():
+    def __init__(self,
+        client_num = 5000,
+        data_num_per_client = 10,
+        r = 5,
+        server_num = 10,
+        l = 60,
+        max_delay = 90,
+        max_connection = 1000,
+        # federated learning settings
+        data_path = "../data/",
+        global_epoch_num = 500,
+        group_epoch_num = 5,
+        learning_rate = 0.1,
+        local_batch_size = 10,
+        device = "cpu",
+        # results
+        log_interval = 5,
+        result_file_accu = "./cifar/grouping/accu",
+        result_file_loss = "./cifar/grouping/loss",
+    ) -> None:
+
+        self.client_num = client_num
+        self.data_num_per_client = data_num_per_client
+        self.r = r
+        self.server_num = server_num
+        self.l = l
+        self.max_delay = max_delay
+        self.max_connection = max_connection
+
+        # federated learning settings
+        self.data_path = data_path
+        self.global_epoch_num = global_epoch_num
+        self.group_epoch_num = group_epoch_num
+        self.learning_rate = learning_rate
+        self.local_batch_size = local_batch_size
+        self.device = device
+
+        # results
+        self.log_interval = log_interval
+        self.result_file_accu = result_file_accu
+        self.result_file_loss = result_file_loss
 
 if __name__ == "__main__":
     # make results reproducible
@@ -15,17 +57,17 @@ if __name__ == "__main__":
     random.seed(1)
 
     # optimization settings
-    client_num = 2500
-    data_num_per_client = 20
+    client_num = 5000
+    data_num_per_client = 10
     r = 5
     server_num = 10
     l = 60
     max_delay = 90
-    max_connection = 500
+    max_connection = 1000
 
     # federated learning settings
     data_path = "../data/"
-    global_epoch_num = 300
+    global_epoch_num = 500
     group_epoch_num = 5
     learning_rate = 0.1
     local_batch_size = data_num_per_client
@@ -39,6 +81,9 @@ if __name__ == "__main__":
     # initialize result file IO wrappers
     faccu = open(result_file_accu, "a")
     floss = open(result_file_loss, "a")
+    faccu.write("\n")
+    floss.write("\n")
+
 
 
     trainset, testset = load_dataset(data_path, "both")

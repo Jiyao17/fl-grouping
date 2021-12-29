@@ -346,11 +346,12 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
 
     for i in range(group_epoch_num):
         # group_single_train(models, group)
-        for client in group:
-            model = clients[client].model
-            trainset = clients[client].trainset
-            device = clients[client].device
-            loss_fn = clients[client].loss
+        for client_index in group:
+            client = clients[client_index]
+            model = client.model
+            trainset = client.trainset
+            device = client.device
+            loss_fn = client.loss
 
             trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
             model.to(device)
@@ -360,7 +361,7 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
 
                 y = model(image.to(device))
                 loss = loss_fn(y, label.to(device))
-                optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0001)
+                optimizer = torch.optim.SGD(model.parameters(), lr=client.lr, momentum=0.9, weight_decay=0.0001)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -415,6 +416,24 @@ def global_distribute(model: nn.Module, clients: 'list[Client]') -> None:
         new_sd = deepcopy(model.state_dict())
         client.model.load_state_dict(new_sd)
 
+def print_params(model: nn.Module, num: int):
+    counter = 1
+    for name, param in model.state_dict().items():
+        if counter > num:
+            break
+        else:
+            print(param[0][0], end="")
+            counter += 1
+    
+    print("")
+
+def compare_models(model: nn.Module, clients: 'list[Client]', num: int):
+
+    print_params(model, num)
+    print_params(clients[0].model, num)
+    print_params(clients[len(clients)//2].model, num)
+    print_params(clients[-1].model, num)
+
 def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
     -> 'tuple[nn.Module, list[nn.Module]]':
     """
@@ -422,13 +441,21 @@ def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: n
     model: new global model
     """
     selected_groups, G_size = get_selected_groups(clients, G, A)
+    print("Number of data on selected clients: %d" % (sum(G_size),))
 
     global_distribute(model, clients)
+
+    # compare_models(model, clients, 1)
     
     for i, group in enumerate(selected_groups):
         single_group_train(clients, group, group_epoch_num)
-    
+
+    # compare_models(model, clients, 1)
+
     model = global_aggregate(model, clients, G, A)
+
+    # compare_models(model, clients, 1)
+
 
 
     return model
