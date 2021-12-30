@@ -239,15 +239,25 @@ def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
 
     return dist
 
-def calc_dists_by_group(clients: 'list[Client]', model: nn.Module, G)-> np.ndarray:
+def calc_loss_by_group(clients: 'list[Client]', model: nn.Module, G)-> np.ndarray:
     dists_group = np.zeros((G.shape[1]))
 
-    for i, dist in enumerate(G):
-        for j, to_server in enumerate(G[i]):
-            if G[i][j] == 1:
-                dist = calc_dist(clients[i].model, model, clients[i].device)
-                dists_group[j] += dist
-    
+    for client_index in group:
+        client = clients[client_index]
+        model = client.model
+        trainset = client.trainset
+        device = client.device
+        loss_fn = client.loss
+
+        trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
+        model.to(device)
+        model.eval()
+
+        for (image, label) in trainloader:
+
+            y = model(image.to(device))
+            loss = loss_fn(y, label.to(device))
+
     return dists_group
 
 def calc_group_delay(D, G) -> np.ndarray:
@@ -282,7 +292,7 @@ def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np
 
     # rank groups
 
-    dists = calc_dists_by_group(clients, model, G)
+    dists = calc_loss_by_group(clients, model, G)
     stds = calc_stds(clients, G)
 
     Q = dists - stds

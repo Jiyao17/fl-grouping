@@ -17,6 +17,8 @@ class Config():
         l = 60,
         max_delay = 90,
         max_connection = 1000,
+        group_selection_interval = 10
+
         # federated learning settings
         data_path = "../data/",
         global_epoch_num = 500,
@@ -37,6 +39,8 @@ class Config():
         self.l = l
         self.max_delay = max_delay
         self.max_connection = max_connection
+        self.group_selection_interval = group_selection_interval
+
 
         # federated learning settings
         self.data_path = data_path
@@ -64,6 +68,7 @@ if __name__ == "__main__":
     l = 60
     max_delay = 90
     max_connection = 1000
+    group_selection_interval = 10
 
     # federated learning settings
     data_path = "../data/"
@@ -92,18 +97,21 @@ if __name__ == "__main__":
     testloader = DataLoader(testset, 500, drop_last=True)
 
     G, M = grouping_default(d, D)
+    A = group_selection(model, clients, l, B, G, M)
     
     for i in range(global_epoch_num):
-        A = group_selection(model, clients, l, B, G, M)
+        if (i+1) % group_selection_interval == 0:
+            A = group_selection(model, clients, l, B, G, M)
 
         model = global_train(model, clients, G, A, group_epoch_num)
         # G, A = re_assign(d, D, B, models, model)
+
 
         if (i + 1) % log_interval == 0:
             accu, loss = test_model(model, testloader, device)
             faccu.write("{:.5f} ".format(accu))
             faccu.flush()
-            floss.write("{:.5f} ".format(loss))
+            floss.write("{:.5f} " .format(loss))
             floss.flush()
 
             print("accuracy and loss at round %d: %.5f, %.5f" % (i, accu, loss))
