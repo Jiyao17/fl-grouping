@@ -17,7 +17,7 @@ class Config():
         l = 60,
         max_delay = 90,
         max_connection = 1000,
-        group_selection_interval = 10
+        group_selection_interval = 10,
 
         # federated learning settings
         data_path = "../data/",
@@ -100,8 +100,6 @@ if __name__ == "__main__":
     A = group_selection(model, clients, l, B, G, M)
     
     for i in range(global_epoch_num):
-        if (i+1) % group_selection_interval == 0:
-            A = group_selection(model, clients, l, B, G, M)
 
         model = global_train(model, clients, G, A, group_epoch_num)
         # G, A = re_assign(d, D, B, models, model)

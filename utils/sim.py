@@ -18,7 +18,7 @@ class Client:
         lr: float, 
         device: str="cpu", 
         batch_size: int=0, 
-        loss=nn.CrossEntropyLoss()
+        loss_fn=nn.CrossEntropyLoss()
         ) -> None:
 
         self.model = model
@@ -26,25 +26,33 @@ class Client:
         self.lr = lr
         self.device = device
         self.batch_size = batch_size if batch_size != 0 else len(trainset.indices)
-        self.loss = loss
+        self.loss_fn = loss_fn
 
         self.trainloader = DataLoader(self.trainset, self.batch_size, True, drop_last=True)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
 
+        self.train_loss = None
 
-    def train(self):
+    def train(self, lr=None):
+        if lr != None:
+            self.lr = lr
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
+
         self.model.to(self.device)
         self.model.train()
 
+        self.train_loss = 0
         for (image, label) in self.trainloader:
 
             y = self.model(image.to(self.device))
-            loss = self.loss(y, label.to(self.device))
+            loss = self.loss_fn(y, label.to(self.device))
+            self.train_loss += loss.item()
 
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-
+        
+        return self.train_loss
 
 def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection) \
     -> 'tuple[list[Subset], np.ndarray, np.ndarray]':
@@ -247,7 +255,7 @@ def calc_loss_by_group(clients: 'list[Client]', model: nn.Module, G)-> np.ndarra
         model = client.model
         trainset = client.trainset
         device = client.device
-        loss_fn = client.loss
+        loss_fn = client.loss_fn
 
         trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
         model.to(device)
@@ -361,7 +369,7 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
             model = client.model
             trainset = client.trainset
             device = client.device
-            loss_fn = client.loss
+            loss_fn = client.loss_fn
 
             trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
             model.to(device)
