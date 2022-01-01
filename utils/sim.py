@@ -247,26 +247,44 @@ def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
 
     return dist
 
-def calc_loss_by_group(clients: 'list[Client]', model: nn.Module, G)-> np.ndarray:
-    dists_group = np.zeros((G.shape[1]))
+def get_all_groups(clients: 'list[Client]', G: np.ndarray) -> 'tuple[list[list[int]], list[int]]':
+    groups: list[list[int]] = []
+    groups_size: list[int] = [ 0 for i in range(G.shape[1])]
+    G_T = G.transpose()
+    for i in range(G.shape[1]):
+        new_group = []
+        for j, client in enumerate(G_T[i]):
+            if client == 1:
+                new_group.append(j)
+                groups_size[i] += len(clients[j].trainset.indices)
 
-    for client_index in group:
-        client = clients[client_index]
-        model = client.model
-        trainset = client.trainset
-        device = client.device
-        loss_fn = client.loss_fn
+        groups.append(new_group)
+    
+    return groups, groups_size
 
-        trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
-        model.to(device)
-        model.eval()
+def calc_loss_by_group(clients: 'list[Client]', model: nn.Module, G: np.ndarray)-> np.ndarray:
+    group_loss = np.zeros((G.shape[1]))
 
-        for (image, label) in trainloader:
+    groups, groups_size = get_all_groups(clients, G)
 
-            y = model(image.to(device))
-            loss = loss_fn(y, label.to(device))
+    for i, group in enumerate(groups):
+        for client_index in group:
+            client = clients[client_index]
+            model = client.model
+            trainset = client.trainset
+            device = client.device
+            loss_fn = client.loss_fn
 
-    return dists_group
+            trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
+            model.to(device)
+            model.eval()
+
+            for (image, label) in trainloader:
+
+                y = model(image.to(device))
+                group_loss[i] += loss_fn(y, label.to(device)).item()
+
+    return group_loss
 
 def calc_group_delay(D, G) -> np.ndarray:
     M = np.zeros((G.shape[1], D.shape[1]))
@@ -289,7 +307,7 @@ def calc_group_delay(D, G) -> np.ndarray:
 
     return M
 
-def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np.ndarray:
+def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np.ndarray:
     """
     return
     A: g*s, group assignment matrix
@@ -299,6 +317,8 @@ def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np
     # A = filter_delay(M, A, l)
 
     # rank groups
+
+    global_distribute(model, clients)
 
     dists = calc_loss_by_group(clients, model, G)
     stds = calc_stds(clients, G)
@@ -328,7 +348,13 @@ def group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np
             else:
                 A[seq][j] = 0
 
-    return A
+    selected_groups, G_size = get_selected_groups(clients, G, A)
+    print("Number of data on selected clients: %d" % (sum(G_size),))
+
+    model = global_aggregate(model, clients, G, A)
+
+    return model, A
+
 
 def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
 
@@ -474,11 +500,6 @@ def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: n
 
     # compare_models(model, clients, 1)
 
-
-
     return model
-
-
-
 
 
