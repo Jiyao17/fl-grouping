@@ -1,2 +1,3 @@
 
-0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 
+0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 0.10000 {'client_num': 100, 'data_num_per_client': 20, 'r': 5, 'server_num': 10, 'l': 60, 'max_delay': 90, 'max_connection': 1000, 'group_selection_interval': 20, 'data_path': '../data/', 'global_epoch_num': 500, 'group_epoch_num': 5, 'learning_rate': 0.1, 'local_batch_size': 20, 'device': 'cuda', 'log_interval': 5, 'result_file_accu': './cifar/grouping/accu', 'result_file_loss': './cifar/grouping/loss'}
+0.21850 

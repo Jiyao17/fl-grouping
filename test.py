@@ -25,7 +25,7 @@ class Config():
         group_epoch_num = 5,
         learning_rate = 0.1,
         local_batch_size = 10,
-        device = "cpu",
+        device = "cuda",
         # results
         log_interval = 5,
         result_file_accu = "./cifar/grouping/accu",
@@ -60,52 +60,39 @@ if __name__ == "__main__":
     np.random.seed(1)
     random.seed(1)
 
-    # optimization settings
-    client_num = 5000
-    data_num_per_client = 10
-    r = 5
-    server_num = 10
-    l = 60
-    max_delay = 90
-    max_connection = 1000
-    group_selection_interval = 10
+    test_config = Config(
+        client_num = 100,
+        data_num_per_client = 200, local_batch_size = 50,
+        r = 5,
+        server_num = 10,
+        l = 60,
+        max_delay = 90,
+        max_connection = 1000,
+        group_selection_interval = 20,
+    )
 
-    # federated learning settings
-    data_path = "../data/"
-    global_epoch_num = 500
-    group_epoch_num = 5
-    learning_rate = 0.1
-    local_batch_size = data_num_per_client
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    config = test_config
 
-    # results
-    log_interval = 5
-    result_file_accu = "./cifar/grouping/accu"
-    result_file_loss = "./cifar/grouping/loss"
+    faccu = open(config.result_file_accu, "a")
+    floss = open(config.result_file_loss, "a")
+    faccu.write(str(vars(config)) + "\n")
+    floss.write(str(vars(config)) + "\n")
 
-    # initialize result file IO wrappers
-    faccu = open(result_file_accu, "a")
-    floss = open(result_file_loss, "a")
-    faccu.write("\n")
-    floss.write("\n")
-
-
-
-    trainset, testset = load_dataset(data_path, "both")
-    d, D, B = init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection)
-    model, clients = init_clients(d, learning_rate, device)
+    trainset, testset = load_dataset(config.data_path, "both")
+    d, D, B = init_settings(trainset, config.client_num, config.data_num_per_client, config.r, config.server_num, config.max_delay, config.max_connection)
+    model, clients = init_clients(d, config.learning_rate, config.device)
     testloader = DataLoader(testset, 500, drop_last=True)
 
     G, M = grouping_default(d, D)
     
-    for i in range(global_epoch_num):
-        if i % group_selection_interval == 0:
-            model, A = global_train_group_selection(model, clients, l, B, G, M)
+    for i in range(config.global_epoch_num):
+        if i % config.group_selection_interval == 0:
+            model, A = global_train_group_selection(model, clients, config.l, B, G, M)
         else:
-            model = global_train(model, clients, G, A, group_epoch_num)
+            model = global_train(model, clients, G, A, config.group_epoch_num)
 
-        if (i + 1) % log_interval == 0:
-            accu, loss = test_model(model, testloader, device)
+        if (i + 1) % config.log_interval == 0:
+            accu, loss = test_model(model, testloader, config.device)
             faccu.write("{:.5f} ".format(accu))
             faccu.flush()
             floss.write("{:.5f} " .format(loss))

@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from torch import nn
 import numpy as np
+import math
 import torch
 from torch.utils.data import dataset
 from torch.utils.data.dataset import Subset
@@ -307,7 +308,8 @@ def calc_group_delay(D, G) -> np.ndarray:
 
     return M
 
-def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) -> np.ndarray:
+def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B, G, M) \
+    -> 'tuple[nn.Module, np.ndarray]':
     """
     return
     A: g*s, group assignment matrix
@@ -320,10 +322,9 @@ def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B
 
     global_distribute(model, clients)
 
-    dists = calc_loss_by_group(clients, model, G)
+    losses = calc_loss_by_group(clients, model, G)
     stds = calc_stds(clients, G)
-
-    Q = dists - stds
+    Q = - np.log(losses) - np.log(stds)
     seq = [ i for i in range(Q.shape[0])]
     Q_sorted = sorted(zip(Q, seq))
     Q_sorted.reverse()
@@ -354,7 +355,6 @@ def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B
     model = global_aggregate(model, clients, G, A)
 
     return model, A
-
 
 def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
 
