@@ -204,6 +204,45 @@ def grouping_default(d: 'list[Subset]', D) \
 
     return G, M
 
+def regroup(G: np.ndarray, A: np.ndarray, s: int) -> 'tuple[np.ndarry, np.ndarry]':
+    group_num: int = G.shape[1]
+    new_group_size: int = group_num // s
+
+    A_T = A.transpose()
+
+    group2server: list[int] = []
+    
+    new_groups: 'list[list[int]]' = []
+    for i, server in enumerate(A_T):
+        new_group: 'list[int]' = []
+        for j, group in server:
+            if A_T[i][j] == 1:
+                if len(new_group) < new_group_size:
+                    new_group.append(j)
+                else:
+                    new_groups.append(new_group)
+                    new_group = []
+
+    new_A = np.zeros((len(new_groups), A.shape[1],))
+    for i, new_group in enumerate(new_groups):
+        one_group = new_group[0]
+        belong_to_server = 0
+        for j, to_server in enumerate(A[one_group]):
+            if to_server == 1:
+                belong_to_server = j
+                break
+        
+
+
+    new_G = np.zeros((G.shape[0], len(new_groups),))
+    for i, new_group in enumerate(new_groups):
+        for old_group in new_group:
+            G_T = G.transpose()
+            for k, old_group in enumerate(G_T):
+                pass
+
+    return G, A
+
 def calc_stds(clients: 'list[Client]', G: np.ndarray) -> np.ndarray:
     """
     return 
@@ -228,7 +267,7 @@ def calc_stds(clients: 'list[Client]', G: np.ndarray) -> np.ndarray:
         total_num = np.sum(group)
         avg = total_num / len(group)
         for j, target in enumerate(group):
-            stds[i] += (label_list[i][j] - avg) ** 2
+            stds[i] += (label_list[i][j] - avg) ** 2 / len(group)
 
     return stds
 
@@ -247,6 +286,19 @@ def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
         dist += (x - y).abs().sum()
 
     return dist
+
+def G2list(G: np.ndarray) -> 'list[list[int]]':
+    groups: list[list[int]] = []
+    G_T = G.transpose()
+    for i in range(G.shape[1]):
+        new_group = []
+        for j, client in enumerate(G_T[i]):
+            if client == 1:
+                new_group.append(j)
+
+        groups.append(new_group)
+    
+    return groups
 
 def get_all_groups(clients: 'list[Client]', G: np.ndarray) -> 'tuple[list[list[int]], list[int]]':
     groups: list[list[int]] = []
@@ -284,6 +336,8 @@ def calc_loss_by_group(clients: 'list[Client]', model: nn.Module, G: np.ndarray)
 
                 y = model(image.to(device))
                 group_loss[i] += loss_fn(y, label.to(device)).item()
+
+    group_loss /= groups_size
 
     return group_loss
 
@@ -324,7 +378,8 @@ def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B
 
     losses = calc_loss_by_group(clients, model, G)
     stds = calc_stds(clients, G)
-    Q = - np.log(losses) - np.log(stds)
+
+    Q = np.exp(2 - losses * 10) - np.log(stds + 1)
     seq = [ i for i in range(Q.shape[0])]
     Q_sorted = sorted(zip(Q, seq))
     Q_sorted.reverse()
@@ -351,10 +406,12 @@ def global_train_group_selection(model: nn.Module, clients: 'list[Client]', l, B
 
     selected_groups, G_size = get_selected_groups(clients, G, A)
     print("Number of data on selected clients: %d" % (sum(G_size),))
+    print(np.exp(losses*10 + 1)[:10])
+    print(np.log(stds + 1)[:10])
 
-    model = global_aggregate(model, clients, G, A)
+    model = global_aggregation(model, clients, G, A)
 
-    return model, A
+    return model, losses.sum(), A
 
 def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
 
@@ -386,8 +443,9 @@ def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
         new_sd = deepcopy(state_dicts[i])
         client.model.load_state_dict(new_sd)
 
-def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_num: int):
-
+def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_num: int) \
+    -> float:
+    group_loss = 0
     for i in range(group_epoch_num):
         # group_single_train(models, group)
         for client_index in group:
@@ -405,6 +463,7 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
 
                 y = model(image.to(device))
                 loss = loss_fn(y, label.to(device))
+                group_loss += loss.item()
                 optimizer = torch.optim.SGD(model.parameters(), lr=client.lr, momentum=0.9, weight_decay=0.0001)
 
                 optimizer.zero_grad()
@@ -412,6 +471,7 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
                 optimizer.step()
     
     group_aggregation(clients, group)
+    return group_loss
 
 def get_selected_groups(clients: 'list[Client]', G: np.ndarray, A: np.ndarray) -> 'tuple[list[list[int]], list[int]]':
     selected_flags: np.ndarray = np.max(A, axis=1)
@@ -430,7 +490,7 @@ def get_selected_groups(clients: 'list[Client]', G: np.ndarray, A: np.ndarray) -
     
     return selected_groups, G_size
 
-def global_aggregate(model: nn.Module, clients: 'list[Client]', G, A) -> nn.Module:
+def global_aggregation(model: nn.Module, clients: 'list[Client]', G, A) -> nn.Module:
     selected_groups, groups_size = get_selected_groups(clients, G, A)
     
     # G_size = get_groups_size(clients, G)
@@ -479,7 +539,7 @@ def compare_models(model: nn.Module, clients: 'list[Client]', num: int):
     print_params(clients[-1].model, num)
 
 def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: np.ndarray, group_epoch_num: int) \
-    -> 'tuple[nn.Module, list[nn.Module]]':
+    -> 'tuple[nn.Module, float]':
     """
     return
     model: new global model
@@ -491,15 +551,16 @@ def global_train(model: nn.Module, clients: 'list[Client]',  G: np.ndarray, A: n
 
     # compare_models(model, clients, 1)
     
+    epoch_loss: float = 0
     for i, group in enumerate(selected_groups):
-        single_group_train(clients, group, group_epoch_num)
+        epoch_loss += single_group_train(clients, group, group_epoch_num)
 
     # compare_models(model, clients, 1)
 
-    model = global_aggregate(model, clients, G, A)
+    model = global_aggregation(model, clients, G, A)
 
     # compare_models(model, clients, 1)
 
-    return model
+    return model, epoch_loss
 
 

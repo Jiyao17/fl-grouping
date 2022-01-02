@@ -61,35 +61,51 @@ if __name__ == "__main__":
     random.seed(1)
 
     test_config = Config(
-        client_num = 100,
-        data_num_per_client = 200, local_batch_size = 50,
-        r = 5,
+        client_num = 200, learning_rate=0.1,
+        data_num_per_client = 100, local_batch_size = 100,
+        group_epoch_num=5,
+        r = 3,
         server_num = 10,
         l = 60,
         max_delay = 90,
-        max_connection = 1000,
+        max_connection = 200,
         group_selection_interval = 20,
+        log_interval=1,
     )
 
     config = test_config
 
     faccu = open(config.result_file_accu, "a")
     floss = open(config.result_file_loss, "a")
-    faccu.write(str(vars(config)) + "\n")
-    floss.write(str(vars(config)) + "\n")
+    faccu.write("\n" + str(vars(config)) + "\n")
+    floss.write("\n" + str(vars(config)) + "\n")
+    faccu.flush()
+    floss.flush()
 
     trainset, testset = load_dataset(config.data_path, "both")
     d, D, B = init_settings(trainset, config.client_num, config.data_num_per_client, config.r, config.server_num, config.max_delay, config.max_connection)
+    
+    labels = trainset.targets
+    for i in range(len(d)):
+        for index in d[i].indices:
+            print(labels[index], end="")
+        print("")
+    print(D)
+    print(B)
     model, clients = init_clients(d, config.learning_rate, config.device)
-    testloader = DataLoader(testset, 500, drop_last=True)
+    testloader = DataLoader(testset, 1000, drop_last=True)
 
     G, M = grouping_default(d, D)
+
+    print(G)
+    print(M)
     
     for i in range(config.global_epoch_num):
-        if i % config.group_selection_interval == 0:
-            model, A = global_train_group_selection(model, clients, config.l, B, G, M)
+        # if i % config.group_selection_interval == 0:
+        if i == 0:
+            model, epoch_loss, A = global_train_group_selection(model, clients, config.l, B, G, M)
         else:
-            model = global_train(model, clients, G, A, config.group_epoch_num)
+            model, epoch_loss = global_train(model, clients, G, A, config.group_epoch_num)
 
         if (i + 1) % config.log_interval == 0:
             accu, loss = test_model(model, testloader, config.device)
@@ -98,5 +114,5 @@ if __name__ == "__main__":
             floss.write("{:.5f} " .format(loss))
             floss.flush()
 
-            print("accuracy and loss at round %d: %.5f, %.5f" % (i, accu, loss))
+            print("accuracy, loss, training loss at round %d: %.5f, %.5f, %.5f" % (i, accu, loss, epoch_loss))
 
