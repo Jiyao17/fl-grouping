@@ -149,7 +149,23 @@ def clustering(d: 'list[Subset]', group: 'list[int]') -> 'list[list[int]]':
     #         group[i] = subsets[group[i]]
     return groups
 
-def grouping_default(d: 'list[Subset]', D) \
+def regroup(clusters: 'list[list[int]]', cluster_size: int) -> 'list[list[int]]':
+    new_clusters = []
+
+    new_cluster = []
+    for cluster in clusters:
+        if len(new_cluster) + len(cluster) < cluster_size:
+            new_cluster += cluster
+        else:
+            new_cluster += cluster
+            new_clusters.append(new_cluster)
+            new_cluster = []
+    if new_cluster != []:
+        new_clusters.append(new_cluster)
+    
+    return new_clusters
+
+def grouping_default(d: 'list[Subset]', D, group_size: int = 20) \
     -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
     """
     Assign each client to its nearest server
@@ -174,6 +190,7 @@ def grouping_default(d: 'list[Subset]', D) \
     # cluster clients to the same server
     for group in groups:
         clusters = clustering(d, group)
+        clusters = regroup(clusters, 20)
         clusters_list.append(clusters)
         group_num += len(clusters)
 
@@ -190,58 +207,56 @@ def grouping_default(d: 'list[Subset]', D) \
             for client in cluster:
                 G[client][group_counter] = 1
 
-                # group delay
-                # delay = D[client][server]
-                # if delay > max_delay:
-                #     max_delay = delay
-
             A[group_counter][server] = 1
-            # G_size[group_counter] = len(cluster)
-            # M[group_counter][server] = max_delay
             group_counter += 1
     
     M = calc_group_delay(D, G)
 
     return G, M
 
-def regroup(G: np.ndarray, A: np.ndarray, s: int) -> 'tuple[np.ndarry, np.ndarry]':
-    group_num: int = G.shape[1]
-    new_group_size: int = group_num // s
+# def regroup(G: np.ndarray, A: np.ndarray, s: int) -> 'tuple[np.ndarry, np.ndarry]':
+#     "s: each new group contains s old groups"
+#     group_num: int = G.shape[1]
+#     new_group_size: int = math.ceil(group_num / s)
 
-    A_T = A.transpose()
+#     A_T = A.transpose()
 
-    group2server: list[int] = []
+#     group2server: list[int] = []
     
-    new_groups: 'list[list[int]]' = []
-    for i, server in enumerate(A_T):
-        new_group: 'list[int]' = []
-        for j, group in server:
-            if A_T[i][j] == 1:
-                if len(new_group) < new_group_size:
-                    new_group.append(j)
-                else:
-                    new_groups.append(new_group)
-                    new_group = []
+#     # get new groups as list
+#     new_groups: 'list[list[int]]' = []
+#     for i, server in enumerate(A_T):
+#         new_group: 'list[int]' = []
+#         for j, group in server:
+#             if A_T[i][j] == 1:
+#                 if len(new_group) < new_group_size:
+#                     new_group.append(j)
+#                 else:
+#                     new_groups.append(new_group)
+#                     new_group = []
 
-    new_A = np.zeros((len(new_groups), A.shape[1],))
-    for i, new_group in enumerate(new_groups):
-        one_group = new_group[0]
-        belong_to_server = 0
-        for j, to_server in enumerate(A[one_group]):
-            if to_server == 1:
-                belong_to_server = j
-                break
+#     # construct new A
+#     new_A = np.zeros((len(new_groups), A.shape[1],))
+#     for i, new_group in enumerate(new_groups):
+#         one_group = new_group[0]
+#         belong_to_server = 0
+#         for j, to_server in enumerate(A[one_group]):
+#             if to_server == 1:
+#                 belong_to_server = j
+#                 break
         
+#         new_A[i][belong_to_server] = 1
+        
+#     # construct new G
+#     new_G = np.zeros((G.shape[0], len(new_groups),))
+#     for i, new_group in enumerate(new_groups):
+#         for old_group in new_group:
+#             G_T = G.transpose()
+#             for k, contain_client in enumerate(G_T[old_group]):
+#                 if contain_client == 1:
+#                     new_G[k][i] = 1
 
-
-    new_G = np.zeros((G.shape[0], len(new_groups),))
-    for i, new_group in enumerate(new_groups):
-        for old_group in new_group:
-            G_T = G.transpose()
-            for k, old_group in enumerate(G_T):
-                pass
-
-    return G, A
+#     return new_G, new_A
 
 def calc_stds(clients: 'list[Client]', G: np.ndarray) -> np.ndarray:
     """
