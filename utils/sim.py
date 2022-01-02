@@ -190,7 +190,7 @@ def grouping_default(d: 'list[Subset]', D, group_size: int = 20) \
     # cluster clients to the same server
     for group in groups:
         clusters = clustering(d, group)
-        clusters = regroup(clusters, 20)
+        clusters = regroup(clusters, group_size)
         clusters_list.append(clusters)
         group_num += len(clusters)
 
@@ -455,7 +455,7 @@ def group_aggregation(clients: 'list[Client]', group: 'list[int]'):
     # update all clients in this group
     selected_clients: list[Client] = [clients[i] for i in group]
     for i, client in enumerate(selected_clients):
-        new_sd = deepcopy(state_dicts[i])
+        new_sd = deepcopy(state_dict_avg)
         client.model.load_state_dict(new_sd)
 
 def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_num: int) \
@@ -491,17 +491,19 @@ def single_group_train(clients: 'list[Client]', group: 'list[int]', group_epoch_
 def get_selected_groups(clients: 'list[Client]', G: np.ndarray, A: np.ndarray) -> 'tuple[list[list[int]], list[int]]':
     selected_flags: np.ndarray = np.max(A, axis=1)
     selected_groups: list[list[int]] = []
-    G_size: list[int] = [ 0 for i in range(A.shape[0])]
+    G_size: list[int] = []
     G_T = G.transpose()
     for i, selected in enumerate(selected_flags):
         if selected == 1:
             new_group = []
+            size = 0
             for j, client in enumerate(G_T[i]):
                 if client == 1:
                     new_group.append(j)
-                    G_size[i] += len(clients[j].trainset.indices)
+                    size += len(clients[j].trainset.indices)
 
             selected_groups.append(new_group)
+            G_size.append(size)
     
     return selected_groups, G_size
 
@@ -512,7 +514,7 @@ def global_aggregation(model: nn.Module, clients: 'list[Client]', G, A) -> nn.Mo
     data_num_sum = sum(groups_size)
 
     state_dicts = []
-    for group in enumerate(selected_groups):
+    for i, group in enumerate(selected_groups):
         client = clients[group[0]]
         model = client.model.to(client.device)
         state_dicts.append(model.state_dict())

@@ -61,14 +61,14 @@ if __name__ == "__main__":
     random.seed(1)
 
     test_config = Config(
-        client_num = 1000, learning_rate=0.1,
+        client_num = 30, learning_rate=0.1,
         data_num_per_client = 50, local_batch_size = 50,
         group_epoch_num=5,
         r = 5,
         server_num = 10,
         l = 60,
         max_delay = 90,
-        max_connection = 500,
+        max_connection = 50,
         group_selection_interval = 20,
         log_interval=5,
     )
@@ -90,15 +90,15 @@ if __name__ == "__main__":
         for index in d[i].indices:
             print(labels[index], end="")
         print("")
-    print(D)
-    print(B)
+    # print(D)
+    # print(B)
     model, clients = init_clients(d, config.learning_rate, config.device)
     testloader = DataLoader(testset, 1000, drop_last=True)
 
     G, M = grouping_default(d, D, 3)
 
-    print(G)
-    print(M)
+    # print(G)
+    # print(M)
     
     for i in range(config.global_epoch_num):
         # if i % config.group_selection_interval == 0:
