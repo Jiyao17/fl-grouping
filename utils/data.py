@@ -7,8 +7,7 @@ import numpy as np
 
 import random
 
-
-def load_dataset(data_path: str, type: str="both"):
+def load_dataset_CIFAR(data_path: str, dataset_type: str="both"):
     # enhance
     # Use the torch.transforms, a package on PIL Image.
     transform_enhanc_func = tvtf.Compose([
@@ -27,14 +26,18 @@ def load_dataset(data_path: str, type: str="both"):
         ])
 
     trainset, testset = None, None
-    if type != "test":
+    if dataset_type != "test":
         trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
             download=True, transform=transform_enhanc_func)
-    if type != "train":
+    if dataset_type != "train":
         testset = torchvision.datasets.CIFAR10(root=data_path, train=False,
             download=True, transform=transform_func)
 
     return (trainset, testset)
+
+def load_dataset(dataset_name: str, data_path: str, dataset_type: str="both"):
+    if dataset_name == 'CIFAR':
+        return load_dataset_CIFAR(data_path, dataset_type)
 
 def get_targets(dataset: Dataset) -> list:
     targets = dataset.targets
