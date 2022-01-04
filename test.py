@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     torch.cuda.empty_cache()
 
-    folders = ["test", "temp", "grouping"]
+    folders = ["test", "fedavg", "grouping"]
     folder = folders[2]
 
     test_config = GFLConfig(
@@ -22,11 +22,11 @@ if __name__ == "__main__":
         global_epoch_num= 300, reselect_interval=300,
 
         group_epoch_num=5, r = 5, server_num = 1,
-        l = 60, max_delay = 60, max_connection = 500,
+        l = 60, max_delay = 60, max_connection = 500, 
         log_interval=10,
 
-        min_group_size=1,
-        comment="central", 
+        min_group_size=1, # 1: no regrouping,
+        comment="single server grouping", 
 
         result_file_accu="./cifar/" + folder + "/accu",
         result_file_loss="./cifar/" + folder + "/loss",

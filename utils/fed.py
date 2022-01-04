@@ -273,6 +273,10 @@ class GFL:
         """
         
         def clustering(group: 'list[int]') -> 'list[list[int]]':
+            """
+            group a client with another one as long as the group is not iid
+            if the clients are already iid, then all groups have only one client
+            """
             def find_next(cur_set: set, subunions: 'list[set]') -> int:
                 """
                 return the index if can add more categories
@@ -327,6 +331,7 @@ class GFL:
  
         def regroup(clusters: 'list[list[int]]', cluster_size: int) -> 'list[list[int]]':
             """
+            merge any group smaller than given size to another group until reach the size
             reset G
             """
             new_clusters = []
