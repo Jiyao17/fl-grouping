@@ -34,10 +34,6 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
 
 
 
-
-
-
-
 def compare_models(model: nn.Module, clients: 'list[Client]', num: int):
     def print_params(model: nn.Module, num: int):
         counter = 1

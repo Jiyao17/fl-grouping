@@ -55,7 +55,6 @@ class Client:
 
         return model, clients
 
-
     def __init__(
         self, model: nn.Module, 
         trainset: Subset, 
@@ -73,7 +72,7 @@ class Client:
         self.loss_fn = loss_fn
 
         self.trainloader = DataLoader(self.trainset, self.batch_size, True, drop_last=True)
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9) #, weight_decay=0.0001
 
         self.train_loss = None
 
@@ -99,7 +98,7 @@ class Client:
         return self.train_loss
 
 
-class Config():
+class Config:
     def __init__(self,
         task_name = 'CIFAR',
         client_num = 5000,
@@ -109,7 +108,6 @@ class Config():
         l = 60,
         max_delay = 90,
         max_connection = 1000,
-        group_selection_interval = 10,
         # federated learning settings
         data_path = "../data/",
         global_epoch_num = 500,
@@ -131,13 +129,12 @@ class Config():
         self.l = l
         self.max_delay = max_delay
         self.max_connection = max_connection
-        self.group_selection_interval = group_selection_interval
         # federated learning settings
         self.data_path = data_path
         self.global_epoch_num = global_epoch_num
         self.group_epoch_num = group_epoch_num
         self.learning_rate = learning_rate
-        self.local_batch_size = local_batch_size
+        self.batch_size = local_batch_size
         self.device = device
         # results
         self.log_interval = log_interval
@@ -149,7 +146,7 @@ class Config():
 
 class GFLConfig(Config):
     def __init__(self, client_num=5000, data_num_per_client=10, r=5, server_num=10, 
-        l=60, max_delay=90, max_connection=1000, group_selection_interval=10, 
+        l=60, max_delay=90, max_connection=1000,
         data_path="../data/", global_epoch_num=500, group_epoch_num=5, learning_rate=0.1, 
         local_batch_size=10, device="cuda", log_interval=5, 
         result_file_accu="./cifar/grouping/accu", 
@@ -161,11 +158,11 @@ class GFLConfig(Config):
         ) -> None:
         super().__init__(client_num=client_num, data_num_per_client=data_num_per_client, 
             r=r, server_num=server_num, l=l, max_delay=max_delay, 
-            max_connection=max_connection, group_selection_interval=group_selection_interval, 
-            data_path=data_path, global_epoch_num=global_epoch_num, 
-            group_epoch_num=group_epoch_num, learning_rate=learning_rate, 
-            local_batch_size=local_batch_size, device=device, log_interval=log_interval, 
-            result_file_accu=result_file_accu, result_file_loss=result_file_loss, 
+            max_connection=max_connection, data_path=data_path, 
+            global_epoch_num=global_epoch_num, group_epoch_num=group_epoch_num,
+            learning_rate=learning_rate, local_batch_size=local_batch_size, device=device,
+            log_interval=log_interval, result_file_accu=result_file_accu, 
+            result_file_loss=result_file_loss, 
             comment=comment)
         
         self.reselect_interval = reselect_interval
@@ -174,7 +171,9 @@ class GFLConfig(Config):
 
 class GFL:
 
-    def get_all_groups(self) -> 'tuple[list[list[int]], list[int]]':
+    def set_all_groups(self) -> 'tuple[list[list[int]], list[int]]':
+        # set the following two fields
+        # using self.G
         self.all_groups = []
         self.all_groups_size = []
 
@@ -190,7 +189,9 @@ class GFL:
             self.all_groups.append(new_group)
             self.all_groups_size.append(size)
         
-    def get_selected_groups(self) -> 'tuple[list[list[int]], list[int]]':
+    def set_selected_groups(self) -> 'tuple[list[list[int]], list[int]]':
+        # set the following two fields
+        # using self.G, self.A
         self.selected_groups = []
         self.selected_groups_size = []
 
@@ -224,10 +225,12 @@ class GFL:
             self.config.data_num_per_client, self.config.r, self.config.server_num,
             self.config.max_delay, self.config.max_connection)
         self.testloader = DataLoader(self.testset, 1000, drop_last=True)
-        self.model, self.clients = Client.init_clients(self.d, self.config.learning_rate, self.config.local_batch_size, self.config.device)
+        self.model, self.clients = Client.init_clients(self.d, self.config.learning_rate, self.config.device, self.config.batch_size)
 
 
-        self.G, self.M = self.grouping_default()
+        self.G: np.ndarray = None
+        self.M: np.ndarray = None
+        self.grouping_default()
         
         self.selected_groups: list[list[int]] = []
         self.selected_groups_size: list[int] = []
@@ -247,10 +250,10 @@ class GFL:
 
     def train(self):
         for i in range(self.config.global_epoch_num):
-            if i % self.config.group_selection_interval == 0:
+            if i % self.config.reselect_interval == 0:
                 self.group_selection()
                 
-            loss = self.global_train()
+            epoch_loss = self.global_train()
 
             if (i + 1) % self.config.log_interval == 0:
                 accu, loss = test_model(self.model, self.testloader, self.config.device)
@@ -259,15 +262,12 @@ class GFL:
                 self.floss.write("{:.5f} " .format(loss))
                 self.floss.flush()
 
-                print("accuracy, loss, training loss at round %d: %.5f, %.5f, %.5f" % (i, accu, loss, epoch_loss))
+                print("accuracy, loss, training loss at round %d: %.5f, %.5f, %.5f" % 
+                    (i, accu, loss, epoch_loss))
 
     def grouping_default(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
         """
-        Assign each client to its nearest server
-        Clustering clients connected to the same server
-        l, B not considered yet
-
-        return group and accesory information
+        set
         G: grouping matrix
         M: g*s, delay, groups to servers
         """
@@ -294,7 +294,7 @@ class GFL:
             targets = get_targets(self.d[0].dataset)
             for client in group:
                 new_set = set()
-                for index in d[client].indices:
+                for index in self.d[client].indices:
                     new_set.add(targets[index])
                 sets.append(new_set)
 
@@ -405,26 +405,24 @@ class GFL:
         def calc_loss_by_group()-> np.ndarray:
             group_loss = np.zeros((self.G.shape[1]))
 
-            groups, groups_size = self.get_all_groups()
+            self.set_all_groups()
 
-            for i, group in enumerate(groups):
+            for i, group in enumerate(self.all_groups):
                 for client_index in group:
                     client = self.clients[client_index]
                     model = client.model
-                    trainset = client.trainset
                     device = client.device
                     loss_fn = client.loss_fn
-
-                    trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
+                    
                     model.to(device)
                     model.eval()
 
-                    for (image, label) in trainloader:
+                    for (image, label) in client.trainloader:
 
                         y = model(image.to(device))
                         group_loss[i] += loss_fn(y, label.to(device)).item()
 
-            group_loss /= groups_size
+            group_loss /= self.all_groups_size
 
             return group_loss
 
@@ -433,19 +431,16 @@ class GFL:
             return 
             std of number of all data in groups
             """
-            d = []
-            for client in self.clients:
-                d.append(client.trainset)
 
             stds = np.zeros((self.G.shape[1],))
-            label_num = len(get_targets_set(d[0].dataset))
+            label_num = len(get_targets_set(self.d[0].dataset))
             label_list = np.zeros((self.G.shape[1], label_num))
 
-            targets = get_targets(d[0].dataset)
+            targets = get_targets(self.d[0].dataset)
             for i, client in enumerate(self.G):
                 for j, to_group in enumerate(client):
-                    if G[i][j] == 1:
-                        for index in d[i].indices:
+                    if self.G[i][j] == 1:
+                        for index in self.d[i].indices:
                             label_list[j][targets[index]] += 1
 
             for i, group in enumerate(label_list):
@@ -459,9 +454,11 @@ class GFL:
         losses = calc_loss_by_group()
         stds = calc_stds()
 
+        # rank all groups by quality
         Q = np.exp(2 - losses * 10) - np.log(stds + 1)
         seq = [ i for i in range(Q.shape[0])]
         Q_sorted = sorted(zip(Q, seq))
+        # from greater to smaller
         Q_sorted.reverse()
 
         group_size_by_client = np.zeros((self.G.shape[1],))
@@ -482,7 +479,7 @@ class GFL:
                 else:
                     self.A[seq][j] = 0
 
-        self.get_selected_groups()
+        self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
         print(np.exp(losses*10 + 1)[:10])
         print(np.log(stds + 1)[:10])
@@ -494,13 +491,40 @@ class GFL:
 
     def global_train(self) -> float:
         """
-        return
-        model: new global model
+        update self.model
         """
-        def single_group_train(group: 'list[int]') \
-            -> float:
+        def single_group_train(group: 'list[int]') -> float:
+            """
+            return loss
+            """
+            def group_train(group: 'list[int]') -> float:
+                group_loss = 0
+                for i in range(self.config.group_epoch_num):
+                    # train all clients in this group
+                    for client_index in group:
+                        client = self.clients[client_index]
+                        model = client.model
+                        device = client.device
+                        loss_fn = client.loss_fn
+
+                        model.to(device)
+                        model.train()
+
+                        for (image, label) in client.trainloader:
+
+                            y = model(image.to(device))
+                            loss = loss_fn(y, label.to(device))
+                            group_loss += loss.item()
+                            optimizer = torch.optim.SGD(model.parameters(), lr=client.lr, momentum=0.9, weight_decay=0.0001)
+
+                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+
+                return group_loss
+                
             def group_aggregation(group: 'list[int]'):
-                # get clients size
+                # get clients sizes
                 C_size = []
                 for index in group:
                     size = len(self.clients[index].trainset.indices)
@@ -520,7 +544,6 @@ class GFL:
                 for key in state_dict_avg.keys():
                     for i in range(len(state_dicts)):
                         state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
-                    # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
                 
                 # update all clients in this group
                 selected_clients: list[Client] = [self.clients[i] for i in group]
@@ -528,31 +551,7 @@ class GFL:
                     new_sd = deepcopy(state_dict_avg)
                     client.model.load_state_dict(new_sd)
 
-            group_loss = 0
-            for i in range(self.config.group_epoch_num):
-                # group_single_train(models, group)
-                for client_index in group:
-                    client = self.clients[client_index]
-                    model = client.model
-                    trainset = client.trainset
-                    device = client.device
-                    loss_fn = client.loss_fn
-
-                    trainloader = DataLoader(trainset, len(trainset.indices), True, drop_last=True)
-                    model.to(device)
-                    model.train()
-
-                    for (image, label) in trainloader:
-
-                        y = model(image.to(device))
-                        loss = loss_fn(y, label.to(device))
-                        group_loss += loss.item()
-                        optimizer = torch.optim.SGD(model.parameters(), lr=client.lr, momentum=0.9, weight_decay=0.0001)
-
-                        optimizer.zero_grad()
-                        loss.backward()
-                        optimizer.step()
-            
+            group_loss = group_train(group)
             group_aggregation(group)
             return group_loss
 
@@ -566,6 +565,9 @@ class GFL:
         epoch_loss: float = 0
         for i, group in enumerate(self.selected_groups):
             epoch_loss += single_group_train(group)
+        # average loss
+        data_num = sum(self.selected_groups_size)
+        epoch_loss /= data_num
 
         # compare_models(model, clients, 1)
 
@@ -581,6 +583,7 @@ class GFL:
         # G_size = get_groups_size(clients, G)
         data_num_sum = sum(self.selected_groups_size)
 
+        # state dicts of the first client in each group
         state_dicts = []
         for i, group in enumerate(self.selected_groups):
             client = self.clients[group[0]]
