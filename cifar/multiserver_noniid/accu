@@ -1,3 +1,3 @@
 
 config:{'task_name': 'CIFAR', 'client_num': 100, 'data_num_per_client': 500, 'r': 5, 'server_num': 10, 'l': 60, 'max_delay': 60, 'max_connection': 5000, 'data_path': '../data/', 'global_epoch_num': 300, 'group_epoch_num': 5, 'learning_rate': 0.1, 'batch_size': 50, 'device': 'cuda', 'log_interval': 10, 'result_file_accu': './cifar/multiserver_noniid/accu', 'result_file_loss': './cifar/multiserver_noniid/loss', 'comment': 'single server noniid', 'reselect_interval': 300, 'min_group_size': 1, 'max_group_size': 1}
-0.55020 0.63900 0.69340 0.73510 0.76180 0.78540 0.79940 0.80420 0.81100 0.81720 0.82030 0.82720 0.83000 0.83420 0.83630 
+0.55020 0.63900 0.69340 0.73510 0.76180 0.78540 0.79940 0.80420 0.81100 0.81720 0.82030 0.82720 0.83000 0.83420 0.83630 0.83890 0.84080 0.84620 0.84750 0.84840 0.85100 0.85150 0.85430 0.85430 0.85570 0.85610 0.85640 0.85730 0.85670 0.85740 
