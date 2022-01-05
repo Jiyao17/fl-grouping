@@ -155,6 +155,7 @@ class GFLConfig(Config):
         # GFL specific settings
         reselect_interval=20,
         min_group_size=20,
+        max_group_size=100,
         ) -> None:
         super().__init__(client_num=client_num, data_num_per_client=data_num_per_client, 
             r=r, server_num=server_num, l=l, max_delay=max_delay, 
@@ -167,6 +168,7 @@ class GFLConfig(Config):
         
         self.reselect_interval = reselect_interval
         self.min_group_size = min_group_size
+        self.max_group_size = max_group_size
 
 
 class GFL:
@@ -257,6 +259,7 @@ class GFL:
 
             if (i + 1) % self.config.log_interval == 0:
                 accu, loss = test_model(self.model, self.testloader, self.config.device)
+                loss /= self.testloader.batch_size
                 self.faccu.write("{:.5f} ".format(accu))
                 self.faccu.flush()
                 self.floss.write("{:.5f} " .format(loss))
@@ -311,11 +314,13 @@ class GFL:
                 # try to get a new group
                 new_group: 'list[list[int]]' = []
                 new_set = set()
+                size_counter = 0
 
                 pos = find_next(new_set, sets)
-                while pos != -1:
+                while pos != -1 and size_counter < self.config.max_group_size:
                     new_group.append(group[pos])
                     new_set = new_set.union(sets[pos])
+                    size_counter += 1
                     group.pop(pos)
                     sets.pop(pos)
 

@@ -1,0 +1,5 @@
+
+config:{'task_name': 'CIFAR', 'client_num': 100, 'data_num_per_client': 500, 'r': 5, 'server_num': 10, 'l': 60, 'max_delay': 60, 'max_connection': 5000, 'data_path': '../data/', 'global_epoch_num': 300, 'group_epoch_num': 5, 'learning_rate': 0.1, 'batch_size': 50, 'device': 'cuda', 'log_interval': 10, 'result_file_accu': './cifar/multiserver_fedavg/accu', 'result_file_loss': './cifar/multiserver_fedavg/loss', 'comment': 'multi server fedavg', 'reselect_interval': 300, 'min_group_size': 1, 'max_group_size': 1}
+
+config:{'task_name': 'CIFAR', 'client_num': 100, 'data_num_per_client': 500, 'r': 10, 'server_num': 10, 'l': 60, 'max_delay': 60, 'max_connection': 5000, 'data_path': '../data/', 'global_epoch_num': 300, 'group_epoch_num': 5, 'learning_rate': 0.1, 'batch_size': 50, 'device': 'cuda', 'log_interval': 10, 'result_file_accu': './cifar/multiserver_fedavg/accu', 'result_file_loss': './cifar/multiserver_fedavg/loss', 'comment': 'multi server fedavg', 'reselect_interval': 300, 'min_group_size': 1, 'max_group_size': 1}
+0.00117 0.00092 0.00078 0.00067 0.00061 0.00057 0.00054 0.00052 0.00049 0.00048 0.00046 0.00045 
