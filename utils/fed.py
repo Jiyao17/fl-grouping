@@ -229,7 +229,7 @@ class GFL:
 
             if (i + 1) % self.config.log_interval == 0:
                 accu, loss = test_model(self.model, self.testloader, self.config.device)
-                loss /= self.testloader.batch_size
+
                 self.faccu.write("{:.5f} ".format(accu))
                 self.faccu.flush()
                 self.floss.write("{:.5f} " .format(loss))
@@ -479,11 +479,10 @@ class GFL:
             """
             def group_train(group: 'list[int]') -> float:
                 group_loss = 0
-                for i in range(self.config.group_epoch_num):
-                    # train all clients in this group
-                    for client_index in group:
-                        client = self.clients[client_index]
-                        group_loss += client.train()
+                # train all clients in this group
+                for client_index in group:
+                    client = self.clients[client_index]
+                    group_loss += client.train()
                         
                 return group_loss
                 
@@ -515,8 +514,11 @@ class GFL:
                     new_sd = deepcopy(state_dict_avg)
                     client.model.load_state_dict(new_sd)
 
-            group_loss = group_train(group)
-            group_aggregation(group)
+            
+            for i in range(self.config.group_epoch_num):
+                group_loss = group_train(group)
+                group_aggregation(group)
+
             return group_loss
 
         # selected_groups, G_size = self.get_selected_groups()

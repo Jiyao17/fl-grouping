@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     fedavg = GFLConfig(
         client_num = 100, learning_rate=0.1,
-        data_num_per_client = 50, local_batch_size = 50,
+        data_num_per_client = 500, local_batch_size = 50,
         global_epoch_num= 300, reselect_interval=300,
 
         server_num = 1,
@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
     noniid = GFLConfig(
         client_num = 100, learning_rate=0.1,
-        data_num_per_client = 50, local_batch_size = 50,
+        data_num_per_client = 500, local_batch_size = 50,
         global_epoch_num= 300, reselect_interval=300,
 
         server_num = 1,
@@ -88,6 +88,24 @@ if __name__ == "__main__":
 
         result_file_accu="./cifar/noniid/accu",
         result_file_loss="./cifar/noniid/loss",
+    )
+
+    grouping = GFLConfig(
+        client_num = 100, learning_rate=0.1,
+        data_num_per_client = 500, local_batch_size = 50,
+        global_epoch_num= 300, reselect_interval=300,
+
+        server_num = 1,
+        group_epoch_num=5, local_epoch_num=1, r = 5, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=10,
+
+        min_group_size=1, # 1: no regrouping,
+        max_group_size=10, # 1: no grouping,
+        comment="single server grouping", 
+
+        result_file_accu="./cifar/grouping/accu",
+        result_file_loss="./cifar/grouping/loss",
     )
 
     debug = GFLConfig(
@@ -114,7 +132,7 @@ if __name__ == "__main__":
     )
 
 
-    config = noniid
+    config = fedavg
 
     gfl = GFL(config)
     gfl.train()
