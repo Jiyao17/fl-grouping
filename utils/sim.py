@@ -20,13 +20,15 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
     B: 1*s, bandwidth vector
     """
 
+
     indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
     d = [ Subset(trainset, indexes) for indexes in indexes_list ]
 
     D = np.random.rand(client_num, server_num) * max_delay
 
-    B = np.random.rand(server_num)
-    sum = np.sum(B)
+    B = np.random.rand(server_num) # 0.2 0.3 0.3
+    sum = np.sum(B) # 0.8
+    # 0.2/0.8*100 0.3/0.8 0.3/0.8 = 1
     B = B / sum * max_connection
     B = B.astype(int)
 

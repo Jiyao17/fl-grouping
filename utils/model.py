@@ -4,6 +4,9 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+# Code for CIFAR ResNet is modified from https://github.com/itchencheng/pytorch-residual-networks
+
+
 
 class ResBlock(nn.Module):
     def __init__(self, in_chann, chann, stride):

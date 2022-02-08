@@ -56,8 +56,6 @@ def get_targets_set(dataset: Dataset) -> list:
 
     return targets_list
 
-
-
 def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
     """
     return value:
