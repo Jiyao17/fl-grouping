@@ -18,13 +18,13 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "env": {"CUDA_VISIBLE_DEVICES": "3,"}
+            "env": {"CUDA_VISIBLE_DEVICES": "0,"}
         },
         {
-            "name": "Python: main.py",
+            "name": "Python: test.py",
             "type": "python",
             "request": "launch",
-            "program": "main.py",
+            "program": "test.py",
             "console": "integratedTerminal"
         }
     ]

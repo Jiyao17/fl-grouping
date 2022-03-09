@@ -169,7 +169,7 @@ if __name__ == "__main__":
     )
 
     test = GFLConfig(
-        client_num = 1000, lr=1, lr_interval=40,
+        client_num = 100, lr=1, lr_interval=40,
         data_num_per_client=50, local_batch_size = 50,
         global_epoch_num= 200, reselect_interval=300,
 
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         l = 60, max_delay = 60, max_connection = 200, 
         log_interval=10,
 
-        group_size=1, # 1: grouping
+        group_size=10, # 1: grouping
         regroup_size=1, # 1: regrouping,
 
         comment="test",
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = ms_grouping
+    config = test
 
     gfl = GFL(config)
     gfl.train()

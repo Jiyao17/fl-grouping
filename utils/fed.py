@@ -269,9 +269,9 @@ class GFL:
 
         # n*(n-1)*(n-2)(n-3)...(n-k) 
         # greedy algorithm n + n-1 + n-2 = O(kn)
-        #               [ 1 ] => [1 2] => [1 2 3/4]
-        #               [ 0 ] => [0 1] => [0 1 3]
-        #               [ 1 3 4]
+        #               [ 1 ] => [1 2] => [1 2 3/4] more labels
+        #               [ 0 ] => [0 1] => [0 1 3] fewer labels
+        #               [ 1 3 4] random
         
         def clustering(group: 'list[int]') -> 'list[list[int]]':
             """
@@ -404,6 +404,8 @@ class GFL:
             clusters_list.append(clusters)
             group_num += len(clusters)
 
+        self.show_group_distribution(clusters[0])
+
         self.G = np.zeros((len(self.d), group_num), int)
         # G_size = np.zeros((group_num,))
         # M = -1 * np.ones((group_num, D.shape[1]))
@@ -491,6 +493,16 @@ class GFL:
             clusters = regroup(clusters, self.config.regroup_size)
             clusters_list.append(clusters)
             group_num += len(clusters)
+        
+        gr = groups[0]
+        lables = np.zeros((10,), int)
+        for client_index in gr:
+            client = self.clients[client_index]
+            indices = client.trainset.indices
+            for index in indices:
+                (image, lable) = client.trainset[index]
+                lables[lable] += 1
+        print(lables)
 
         self.G = np.zeros((len(self.d), group_num), int)
         # G_size = np.zeros((group_num,))
@@ -700,7 +712,15 @@ class GFL:
         
         self.model.load_state_dict(state_dict_avg)
 
-
+    def show_group_distribution(self, group: 'list[int]'):
+        lables = np.zeros((10,), int)
+        for client_index in group:
+            client = self.clients[client_index]
+            indices = client.trainset.indices
+            for index in indices:
+                (image, lable) = client.trainset.dataset[index]
+                lables[lable] += 1
+        print(lables)
 
     # def group2list(G: np.ndarray) -> 'list[list[int]]':
     #     groups: list[list[int]] = []
