@@ -1,5 +1,6 @@
 
 from copy import deepcopy
+import random
 from typing_extensions import OrderedDict
 
 from torch.utils.data import DataLoader
@@ -15,6 +16,7 @@ from utils.sim import init_settings
 from utils.model import test_model, CIFARResNet
 from utils.data import dataset_split_r_random, get_targets_set, get_targets
 
+import sys
 
 def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
     """
@@ -285,14 +287,21 @@ class GFL:
                 return -1 if cannot add more set
                 """
                 max_len = 0
-                # min_len = 10
+                #min_len = sys.maxsize
                 pos = -1
                 for i, subunion in enumerate(subunions):
+                    #cur_len = len(subunion.difference(cur_set))
                     cur_len = len(subunion.difference(cur_set))
                     if cur_len > max_len:
-                    # if cur_len <= min_len:
+                    
+                    #if cur_len <= min_len:
                         pos = i
                         max_len = cur_len
+                        #min_len = cur_len
+                        
+                    #pos = random.randint(0,cur_len)
+                    #pos = random.choice(i)
+                    #pos  = random.choice(subunion)
                 # 1 8 // 3 9 // 6 8 // 2 3 // 1 2 // 2 8 //
                 # group 1 8 size=1
                 # group 1 8, 3 9 =2
@@ -326,7 +335,8 @@ class GFL:
                 new_group: 'list[list[int]]' = []
                 new_set = set()
                 size_counter = 0
-
+                
+                #pos = find_next(new_set, sets)
                 pos = find_next(new_set, sets)
                 while pos != -1 and size_counter < self.config.group_size:
                     new_group.append(group[pos])

@@ -1,0 +1,48 @@
+tuj90887@gpu:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+Traceback (most recent call last):
+  File "test.py", line 211, in <module>
+    gfl = GFL(config)
+  File "/home/tuj90887/fl-grouping/utils/fed.py", line 222, in __init__
+    self.grouping_default()
+  File "/home/tuj90887/fl-grouping/utils/fed.py", line 412, in grouping_default
+    clusters = clustering(group)
+  File "/home/tuj90887/fl-grouping/utils/fed.py", line 340, in clustering
+    pos = find_next(new_set, sets)
+  File "/home/tuj90887/fl-grouping/utils/fed.py", line 297, in find_next
+    if cur_len <= min_len:
+UnboundLocalError: local variable 'min_len' referenced before assignment
+tuj90887@gpu:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[   0 2000    0    0    0    0    0 1750    0 1250]
+Number of data on selected clients: 50000
+[13.32530585 13.1946859  13.01700508 13.044404   13.17115545 12.72932375
+ 12.76569129 12.72932375 12.52453001 11.73607702]
+lr: 1.000000 -> 0.100000
+accuracy, loss, training loss at round 9: 0.18130, 0.00253, 0.00987
+accuracy, loss, training loss at round 19: 0.21860, 0.00220, 0.00913
+accuracy, loss, training loss at round 29: 0.24090, 0.00212, 0.00823
+accuracy, loss, training loss at round 39: 0.26800, 0.00203, 0.00768
+lr: 0.100000 -> 0.010000
+accuracy, loss, training loss at round 49: 0.45300, 0.00156, 0.00958
+accuracy, loss, training loss at round 59: 0.45940, 0.00153, 0.00866
+accuracy, loss, training loss at round 69: 0.46540, 0.00151, 0.00814
+accuracy, loss, training loss at round 79: 0.47210, 0.00149, 0.00782
+lr: 0.010000 -> 0.001000
+accuracy, loss, training loss at round 89: 0.47120, 0.00148, 0.01451
+accuracy, loss, training loss at round 99: 0.47160, 0.00148, 0.01390
+accuracy, loss, training loss at round 109: 0.47250, 0.00148, 0.01339
+accuracy, loss, training loss at round 119: 0.47370, 0.00148, 0.01293
+lr: 0.001000 -> 0.000100
+accuracy, loss, training loss at round 129: 0.47560, 0.00148, 0.02819
+accuracy, loss, training loss at round 139: 0.47570, 0.00149, 0.02807
+accuracy, loss, training loss at round 149: 0.47620, 0.00149, 0.02795
+accuracy, loss, training loss at round 159: 0.47580, 0.00149, 0.02786
+lr: 0.000100 -> 0.000010
+accuracy, loss, training loss at round 169: 0.47620, 0.00149, 0.03747
+accuracy, loss, training loss at round 179: 0.47640, 0.00149, 0.03749
+accuracy, loss, training loss at round 189: 0.47640, 0.00149, 0.03749
+accuracy, loss, training loss at round 199: 0.47740, 0.00149, 0.03750
+tuj90887@gpu:~/fl-grouping$

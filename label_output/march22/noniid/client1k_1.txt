@@ -1,0 +1,33 @@
+tuj90887@gpu:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[  0   0   0   0   0   0   0   0   0 500]
+Number of data on selected clients: 10000
+[10.02131503  9.58197289 10.02131503  9.68818816 10.02131503 10.02131503
+ 10.02131503  9.31703999 10.02131503  9.58197289]
+lr: 1.000000 -> 0.100000
+accuracy, loss, training loss at round 9: 0.15600, 0.00228, 0.02174
+accuracy, loss, training loss at round 19: 0.19240, 0.00213, 0.01667
+accuracy, loss, training loss at round 29: 0.23110, 0.00204, 0.01526
+accuracy, loss, training loss at round 39: 0.25420, 0.00199, 0.01448
+lr: 0.100000 -> 0.010000
+accuracy, loss, training loss at round 49: 0.28330, 0.00194, 0.02296
+accuracy, loss, training loss at round 59: 0.28800, 0.00193, 0.02218
+accuracy, loss, training loss at round 69: 0.29250, 0.00192, 0.02147
+accuracy, loss, training loss at round 79: 0.29550, 0.00192, 0.02087
+lr: 0.010000 -> 0.001000
+accuracy, loss, training loss at round 89: 0.29770, 0.00192, 0.03548
+accuracy, loss, training loss at round 99: 0.29750, 0.00192, 0.03539
+accuracy, loss, training loss at round 109: 0.29760, 0.00192, 0.03539
+accuracy, loss, training loss at round 119: 0.29860, 0.00192, 0.03525
+lr: 0.001000 -> 0.000100
+accuracy, loss, training loss at round 129: 0.29890, 0.00192, 0.04144
+accuracy, loss, training loss at round 139: 0.29920, 0.00192, 0.04140
+accuracy, loss, training loss at round 149: 0.29880, 0.00192, 0.04137
+accuracy, loss, training loss at round 159: 0.29820, 0.00192, 0.04139
+lr: 0.000100 -> 0.000010
+accuracy, loss, training loss at round 169: 0.29820, 0.00192, 0.04221
+accuracy, loss, training loss at round 179: 0.29850, 0.00192, 0.04213
+accuracy, loss, training loss at round 189: 0.29840, 0.00192, 0.04205
+accuracy, loss, training loss at round 199: 0.29840, 0.00192, 0.04211
+tuj90887@gpu:~/fl-grouping$

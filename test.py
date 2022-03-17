@@ -170,9 +170,10 @@ if __name__ == "__main__":
 
     test = GFLConfig(
         client_num = 100, lr=1, lr_interval=40,
-        data_num_per_client=50, local_batch_size = 50,
+        data_num_per_client=500, local_batch_size = 50,
         global_epoch_num= 200, reselect_interval=300,
-
+        # (100 * 500) ( 500 * 100) (1000 * 50)
+        
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5, r = 2, 
         l = 60, max_delay = 60, max_connection = 200, 
@@ -180,6 +181,7 @@ if __name__ == "__main__":
 
         group_size=10, # 1: grouping
         regroup_size=1, # 1: regrouping,
+        # (10, 1) ()
 
         comment="test",
 
