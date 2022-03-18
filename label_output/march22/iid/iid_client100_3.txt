@@ -1,0 +1,34 @@
+tuj90887@gpu:~/fl-grouping$ export CUDA_VISIBLE_DEVICE=3
+tuj90887@gpu:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[250 250 250 250 250 250 250 250 250 250]
+Number of data on selected clients: 50000
+[0.         0.         0.         0.         0.         0.
+ 0.         0.         9.21044037 0.        ]
+lr: 1.000000 -> 0.100000
+accuracy, loss, training loss at round 9: 0.11700, 0.00270, 0.01012
+accuracy, loss, training loss at round 19: 0.23590, 0.00206, 0.00930
+accuracy, loss, training loss at round 29: 0.15870, 0.00255, 0.00837
+accuracy, loss, training loss at round 39: 0.15450, 0.00229, 0.00765
+lr: 0.100000 -> 0.010000
+accuracy, loss, training loss at round 49: 0.44220, 0.00155, 0.00987
+accuracy, loss, training loss at round 59: 0.45490, 0.00152, 0.00885
+accuracy, loss, training loss at round 69: 0.46500, 0.00150, 0.00833
+accuracy, loss, training loss at round 79: 0.47690, 0.00148, 0.00792
+lr: 0.010000 -> 0.001000
+accuracy, loss, training loss at round 89: 0.48080, 0.00147, 0.01467
+accuracy, loss, training loss at round 99: 0.48270, 0.00147, 0.01410
+accuracy, loss, training loss at round 109: 0.48250, 0.00147, 0.01357
+accuracy, loss, training loss at round 119: 0.48370, 0.00147, 0.01313
+lr: 0.001000 -> 0.000100
+accuracy, loss, training loss at round 129: 0.48240, 0.00147, 0.02826
+accuracy, loss, training loss at round 139: 0.48230, 0.00148, 0.02813
+accuracy, loss, training loss at round 149: 0.48200, 0.00148, 0.02804
+accuracy, loss, training loss at round 159: 0.48220, 0.00148, 0.02793
+lr: 0.000100 -> 0.000010
+accuracy, loss, training loss at round 169: 0.48170, 0.00148, 0.03716
+accuracy, loss, training loss at round 179: 0.48150, 0.00148, 0.03711
+accuracy, loss, training loss at round 189: 0.48090, 0.00148, 0.03712
+accuracy, loss, training loss at round 199: 0.48080, 0.00148, 0.03712
+tuj90887@gpu:~/fl-grouping$

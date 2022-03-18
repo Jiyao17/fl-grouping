@@ -1,0 +1,33 @@
+tuj90887@dgx-1:~/fl-grouping$ export CUDA_VISIBLE_DEVICES=1
+tuj90887@dgx-1:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[50 50 50 50 50 50 50 50 50 50]
+Number of data on selected clients: 20000
+[0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+lr: 1.000000 -> 0.100000
+accuracy, loss, training loss at round 9: 0.18090, 0.00214, 0.01592
+accuracy, loss, training loss at round 19: 0.26790, 0.00195, 0.01298
+accuracy, loss, training loss at round 29: 0.25390, 0.00213, 0.01282
+accuracy, loss, training loss at round 39: 0.28140, 0.00198, 0.01217
+lr: 0.100000 -> 0.010000
+accuracy, loss, training loss at round 49: 0.34430, 0.00178, 0.01860
+accuracy, loss, training loss at round 59: 0.34840, 0.00177, 0.01778
+accuracy, loss, training loss at round 69: 0.35160, 0.00176, 0.01709
+accuracy, loss, training loss at round 79: 0.35230, 0.00176, 0.01653
+lr: 0.010000 -> 0.001000
+accuracy, loss, training loss at round 89: 0.34920, 0.00176, 0.03058
+accuracy, loss, training loss at round 99: 0.34870, 0.00177, 0.03042
+accuracy, loss, training loss at round 109: 0.35130, 0.00177, 0.03024
+accuracy, loss, training loss at round 119: 0.35180, 0.00178, 0.03013
+lr: 0.001000 -> 0.000100
+accuracy, loss, training loss at round 129: 0.35190, 0.00178, 0.04062
+accuracy, loss, training loss at round 139: 0.35270, 0.00178, 0.04060
+accuracy, loss, training loss at round 149: 0.35270, 0.00178, 0.04059
+accuracy, loss, training loss at round 159: 0.35240, 0.00178, 0.04057
+lr: 0.000100 -> 0.000010
+accuracy, loss, training loss at round 169: 0.35240, 0.00178, 0.04221
+accuracy, loss, training loss at round 179: 0.35270, 0.00178, 0.04220
+accuracy, loss, training loss at round 189: 0.35220, 0.00178, 0.04218
+accuracy, loss, training loss at round 199: 0.35280, 0.00178, 0.04220
+tuj90887@dgx-1:~/fl-grouping$

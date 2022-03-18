@@ -1,0 +1,53 @@
+tuj90887@dgx-1:~/fl-grouping$ gpuload
+
+GPU:
+------------------------------
+GPU 0: busy: util 25%: mem: 62%
+GPU 1: busy: util 12%: mem: 31%
+GPU 2: busy: util 0%: mem: 13%
+GPU 3: busy: util 71%: mem: 16%
+
+DGX-1:
+------------------------------
+GPU 0: busy: util 3%: mem: 34%
+GPU 1: busy: util 14%: mem: 14%
+GPU 2: busy: util 16%: mem: 14%
+GPU 3: busy: util 12%: mem: 14%
+GPU 4: free: util 0%: mem: 1%
+GPU 5: free: util 0%: mem: 1%
+GPU 6: busy: util 94%: mem: 74%
+GPU 7: free: util 0%: mem: 1%
+
+tuj90887@dgx-1:~/fl-grouping$ export CUDA_VISIBLE_DEVICES=4
+tuj90887@dgx-1:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[25 25 25 25 25 25 25 25 25 25]
+Number of data on selected clients: 10000
+[0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+lr: 1.000000 -> 0.100000
+accuracy, loss, training loss at round 9: 0.16130, 0.00224, 0.02222
+accuracy, loss, training loss at round 19: 0.22920, 0.00202, 0.01676
+accuracy, loss, training loss at round 29: 0.24760, 0.00197, 0.01506
+accuracy, loss, training loss at round 39: 0.26840, 0.00193, 0.01427
+lr: 0.100000 -> 0.010000
+accuracy, loss, training loss at round 49: 0.27230, 0.00192, 0.02248
+accuracy, loss, training loss at round 59: 0.27330, 0.00192, 0.02170
+accuracy, loss, training loss at round 69: 0.27320, 0.00191, 0.02106
+accuracy, loss, training loss at round 79: 0.27570, 0.00191, 0.02047
+lr: 0.010000 -> 0.001000
+accuracy, loss, training loss at round 89: 0.27850, 0.00191, 0.03545
+accuracy, loss, training loss at round 99: 0.27880, 0.00191, 0.03541
+accuracy, loss, training loss at round 109: 0.27920, 0.00191, 0.03533
+accuracy, loss, training loss at round 119: 0.27840, 0.00191, 0.03527
+lr: 0.001000 -> 0.000100
+accuracy, loss, training loss at round 129: 0.27860, 0.00191, 0.04209
+accuracy, loss, training loss at round 139: 0.27910, 0.00191, 0.04207
+accuracy, loss, training loss at round 149: 0.27810, 0.00191, 0.04207
+accuracy, loss, training loss at round 159: 0.27840, 0.00191, 0.04200
+lr: 0.000100 -> 0.000010
+accuracy, loss, training loss at round 169: 0.27820, 0.00191, 0.04289
+accuracy, loss, training loss at round 179: 0.27830, 0.00191, 0.04287
+accuracy, loss, training loss at round 189: 0.27840, 0.00191, 0.04293
+accuracy, loss, training loss at round 199: 0.27840, 0.00191, 0.04292
+tuj90887@dgx-1:~/fl-grouping$
