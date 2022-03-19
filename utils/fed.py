@@ -116,6 +116,7 @@ class GFLConfig:
         data_path="../data/", global_epoch_num=500, group_epoch_num=1,
         local_epoch_num=5, lr=0.1, lr_interval=100,
         local_batch_size=10, device="cuda", log_interval=5, 
+        grouping_mode="iid",
         result_file_accu="./cifar/grouping/accu", 
         result_file_loss="./cifar/grouping/loss",
         comment="",
@@ -142,6 +143,7 @@ class GFLConfig:
         self.lr = lr
         self.batch_size = local_batch_size
         self.device = device
+        self.grouping_mode = grouping_mode
         # results
         self.log_interval = log_interval
         self.result_file_accu = result_file_accu
@@ -219,7 +221,13 @@ class GFL:
         self.selected_groups_size: list[int] = []
         self.all_groups: list[list[int]] = []
         self.all_groups_size: list[int] = []
-        self.grouping_default()
+
+        if self.config.grouping_mode == 'noiid':
+            self.grouping_noniid()
+        elif self.config.grouping_mode == 'iid':
+            self.grouping_iid()
+        else:
+            self.grouping_default()
         
         # labels = trainset.targets
         # for i in range(len(d)):
@@ -513,6 +521,286 @@ class GFL:
                 (image, lable) = client.trainset[index]
                 lables[lable] += 1
         print(lables)
+
+        self.G = np.zeros((len(self.d), group_num), int)
+        # G_size = np.zeros((group_num,))
+        # M = -1 * np.ones((group_num, D.shape[1]))
+
+        group_counter = 0
+        for server, clusters in enumerate(clusters_list):
+            for cluster in clusters:
+                for client in cluster:
+                    self.G[client][group_counter] = 1
+
+                group_counter += 1
+        
+        calc_group_delay()
+
+    def grouping_noniid(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
+        """
+        set
+        G: grouping matrix
+        M: g*s, delay, groups to servers
+        """
+        def clustering(group: 'list[int]') -> 'list[list[int]]':
+            """
+            group a client with another one as long as the group is not iid
+            if the clients are already iid, then all groups have only one client
+            """
+            def find_next(cur_set: set, subunions: 'list[set]') -> int:
+                """
+                return the index if can add more categories
+
+                return -1 if cannot add more set
+                """
+                min_len = 100
+                pos = -1
+                for i, subunion in enumerate(subunions):
+                    #cur_len = len(subunion.difference(cur_set))
+                    cur_len = len(subunion.difference(cur_set))
+                    if cur_len < min_len:
+                        pos = i
+                        min_len = cur_len
+                
+                return pos
+
+            # sets = datasets_to_target_sets(subsets)
+            sets: list[set] = []
+            targets = get_targets(self.d[0].dataset)
+            for client in group:
+                new_set = set()
+                for index in self.d[client].indices:
+                    new_set.add(targets[index])
+                sets.append(new_set)
+
+            groups: 'list[list[int]]' = []
+            # indicates unions of current groups
+            unions: 'list[set[int]]' = []
+            # group_labels: set = set()
+            targets_set = set(targets)
+            while len(sets) > 0:
+                # try to get a new group
+                new_group: 'list[list[int]]' = []
+                new_set = set()
+                size_counter = 0
+                
+                #pos = find_next(new_set, sets)
+                pos = find_next(new_set, sets)
+                while pos != -1 and size_counter < self.config.group_size:
+                    new_group.append(group[pos])
+                    new_set = new_set.union(sets[pos])
+                    size_counter += 1
+                    group.pop(pos)
+                    sets.pop(pos)
+
+                    pos = find_next(new_set, sets)
+
+                groups.append(new_group)
+                unions.append(new_set)
+            return groups
+ 
+        def regroup(clusters: 'list[list[int]]', cluster_size: int) -> 'list[list[int]]':
+            """
+            merge any group smaller than given size to another group until reach the size
+            reset G
+            """
+            new_clusters = []
+
+            new_cluster = []
+            for cluster in clusters:
+                if len(new_cluster) + len(cluster) < cluster_size:
+                    new_cluster += cluster
+                else:
+                    new_cluster += cluster
+                    new_clusters.append(new_cluster)
+                    new_cluster = []
+            if new_cluster != [] and len(new_cluster) >= cluster_size/2:
+                new_clusters.append(new_cluster)
+            
+            return new_clusters
+
+        def calc_group_delay() -> np.ndarray:
+            """
+            set
+            M
+            """
+            self.M = np.zeros((self.G.shape[1], self.D.shape[1]))
+
+            # get clients in each group
+            grouping = [ [] for i in range(self.G.shape[1])]
+            for i, client in enumerate(self.G):
+                for j, to_group in enumerate(client):
+                    if self.G[i][j] == 1:
+                        grouping[j].append(i)
+
+            for i, group in enumerate(self.M):
+                for j, to_server in enumerate(group):
+                    # get group i delay to server j
+                    max_delay = 0
+                    for client in grouping[i]:
+                        if self.D[client][j] > max_delay:
+                            max_delay = self.D[client][j]
+                    self.M[i][j] = max_delay
+
+        # group clients by delay to servers
+        groups: list[list[int]] = [ [] for i in range(self.D.shape[1]) ]
+        # clients to their nearest servers
+        server_indices = np.argmin(self.D, 1)
+        for i, server in enumerate(server_indices):
+            groups[server].append(i)
+
+        group_num = 0
+        clusters_list = []
+        # cluster clients to the same server
+        for group in groups:
+            clusters = clustering(group)
+            clusters = regroup(clusters, self.config.regroup_size)
+            clusters_list.append(clusters)
+            group_num += len(clusters)
+
+        self.show_group_distribution(clusters[0])
+        # self.show_group_distribution(clusters[1])
+        # self.show_group_distribution(clusters[2])
+
+        self.G = np.zeros((len(self.d), group_num), int)
+        # G_size = np.zeros((group_num,))
+        # M = -1 * np.ones((group_num, D.shape[1]))
+
+        group_counter = 0
+        for server, clusters in enumerate(clusters_list):
+            for cluster in clusters:
+                for client in cluster:
+                    self.G[client][group_counter] = 1
+
+                group_counter += 1
+        
+        calc_group_delay()
+
+    def grouping_iid(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
+        """
+        set
+        G: grouping matrix
+        M: g*s, delay, groups to servers
+        """
+        def clustering(group: 'list[int]') -> 'list[list[int]]':
+            """
+            group a client with another one as long as the group is not iid
+            if the clients are already iid, then all groups have only one client
+            """
+            def find_next(cur_set: set, subunions: 'list[set]') -> int:
+                """
+                return the index if can add more categories
+
+                return -1 if cannot add more set
+                """
+                max_len = 0
+                pos = -1
+                for i, subunion in enumerate(subunions):
+                    #cur_len = len(subunion.difference(cur_set))
+                    cur_len = len(subunion.difference(cur_set))
+                    if cur_len > max_len:
+                        pos = i
+                        max_len = cur_len
+                
+                return pos
+
+            # sets = datasets_to_target_sets(subsets)
+            sets: list[set] = []
+            targets = get_targets(self.d[0].dataset)
+            for client in group:
+                new_set = set()
+                for index in self.d[client].indices:
+                    new_set.add(targets[index])
+                sets.append(new_set)
+
+            groups: 'list[list[int]]' = []
+            # indicates unions of current groups
+            unions: 'list[set[int]]' = []
+            # group_labels: set = set()
+            targets_set = set(targets)
+            while len(sets) > 0:
+                # try to get a new group
+                new_group: 'list[list[int]]' = []
+                new_set = set()
+                size_counter = 0
+                
+                #pos = find_next(new_set, sets)
+                pos = find_next(new_set, sets)
+                while pos != -1 and size_counter < self.config.group_size:
+                    new_group.append(group[pos])
+                    new_set = new_set.union(sets[pos])
+                    size_counter += 1
+                    group.pop(pos)
+                    sets.pop(pos)
+
+                    pos = find_next(new_set, sets)
+
+                groups.append(new_group)
+                unions.append(new_set)
+            return groups
+ 
+        def regroup(clusters: 'list[list[int]]', cluster_size: int) -> 'list[list[int]]':
+            """
+            merge any group smaller than given size to another group until reach the size
+            reset G
+            """
+            new_clusters = []
+
+            new_cluster = []
+            for cluster in clusters:
+                if len(new_cluster) + len(cluster) < cluster_size:
+                    new_cluster += cluster
+                else:
+                    new_cluster += cluster
+                    new_clusters.append(new_cluster)
+                    new_cluster = []
+            if new_cluster != [] and len(new_cluster) >= cluster_size/2:
+                new_clusters.append(new_cluster)
+            
+            return new_clusters
+
+        def calc_group_delay() -> np.ndarray:
+            """
+            set
+            M
+            """
+            self.M = np.zeros((self.G.shape[1], self.D.shape[1]))
+
+            # get clients in each group
+            grouping = [ [] for i in range(self.G.shape[1])]
+            for i, client in enumerate(self.G):
+                for j, to_group in enumerate(client):
+                    if self.G[i][j] == 1:
+                        grouping[j].append(i)
+
+            for i, group in enumerate(self.M):
+                for j, to_server in enumerate(group):
+                    # get group i delay to server j
+                    max_delay = 0
+                    for client in grouping[i]:
+                        if self.D[client][j] > max_delay:
+                            max_delay = self.D[client][j]
+                    self.M[i][j] = max_delay
+
+        # group clients by delay to servers
+        groups: list[list[int]] = [ [] for i in range(self.D.shape[1]) ]
+        # clients to their nearest servers
+        server_indices = np.argmin(self.D, 1)
+        for i, server in enumerate(server_indices):
+            groups[server].append(i)
+
+        group_num = 0
+        clusters_list = []
+        # cluster clients to the same server
+        for group in groups:
+            clusters = clustering(group)
+            clusters = regroup(clusters, self.config.regroup_size)
+            clusters_list.append(clusters)
+            group_num += len(clusters)
+
+        self.show_group_distribution(clusters[0])
+        self.show_group_distribution(clusters[1])
+        self.show_group_distribution(clusters[2])
 
         self.G = np.zeros((len(self.d), group_num), int)
         # G_size = np.zeros((group_num,))

@@ -109,21 +109,60 @@ if __name__ == "__main__":
     )
 
     grouping = GFLConfig(
-        client_num = 2500, lr=1, lr_interval=100,
-        data_num_per_client = 20, local_batch_size = 20,
-        global_epoch_num= 300, reselect_interval=3000,
+        client_num = 500, lr=1, lr_interval=50,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 100, reselect_interval=3000,
 
-        server_num = 10,
-        group_epoch_num=5, local_epoch_num=1, r = 2, 
+        server_num = 1,
+        group_epoch_num=10, local_epoch_num=1, r = 2, 
         l = 60, max_delay = 60, max_connection = 500, 
         log_interval=10,
 
-        regroup_size=20, # 1: no regrouping,
+        grouping_mode='noiid',
+        regroup_size=10, # 1: no regrouping,
         group_size=10, # 1: no grouping,
-        comment="single server grouping", 
+        comment="single server noniid grouping", 
 
         result_file_accu="./cifar/grouping/accu",
         result_file_loss="./cifar/grouping/loss",
+    )
+
+    grouping_noiid = GFLConfig(
+        client_num = 500, lr=1, lr_interval=50,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 100, reselect_interval=3000,
+
+        server_num = 1,
+        group_epoch_num=10, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 500, 
+        log_interval=10,
+
+        grouping_mode='noiid',
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="single server noniid grouping", 
+
+        result_file_accu="./cifar/grouping_noiid/accu",
+        result_file_loss="./cifar/grouping_noiid/loss",
+    )
+
+    grouping_iid = GFLConfig(
+        client_num = 500, lr=1, lr_interval=50,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 100, reselect_interval=3000,
+
+        server_num = 1,
+        group_epoch_num=10, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 500, 
+        log_interval=10,
+
+        grouping_mode='iid',
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="single server noniid grouping", 
+
+        result_file_accu="./cifar/grouping_iid/accu",
+        result_file_loss="./cifar/grouping_iid/loss",
     )
 
     ms_grouping = GFLConfig(
@@ -169,21 +208,19 @@ if __name__ == "__main__":
     )
 
     test = GFLConfig(
-        client_num = 100, lr=1, lr_interval=40,
-        data_num_per_client=500, local_batch_size = 50,
-        global_epoch_num= 200, reselect_interval=300,
-        # (100 * 500) ( 500 * 100) (1000 * 50)
-        
+        client_num = 500, lr=1, lr_interval=50,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 100, reselect_interval=3000,
+
         server_num = 1,
-        group_epoch_num=1, local_epoch_num=5, r = 2, 
-        l = 60, max_delay = 60, max_connection = 200, 
+        group_epoch_num=10, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 500, 
         log_interval=10,
 
-        group_size=10, # 1: grouping
-        regroup_size=1, # 1: regrouping,
-        # (10, 1) ()
-
-        comment="test",
+        grouping_mode='iid',
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="single server noniid grouping", 
 
         result_file_accu="./cifar/test/accu",
         result_file_loss="./cifar/test/loss",
@@ -208,7 +245,7 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = test
+    config = grouping_noiid
 
     gfl = GFL(config)
     gfl.train()
