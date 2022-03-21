@@ -109,7 +109,6 @@ class Client:
         self.lr = new_lr
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
-
 class GFLConfig:
     def __init__(self, task_name="CIFAR", client_num=5000, data_num_per_client=10, r=5, server_num=10, 
         l=60, max_delay=90, max_connection=1000,
@@ -154,7 +153,6 @@ class GFLConfig:
         self.reselect_interval = reselect_interval
         self.regroup_size = regroup_size
         self.group_size = group_size
-
 
 class GFL:
 
@@ -226,6 +224,8 @@ class GFL:
             self.grouping_noniid()
         elif self.config.grouping_mode == 'iid':
             self.grouping_iid()
+        elif self.config.grouping_mode == 'random':
+            self.grouping_random_1()
         else:
             self.grouping_default()
         
@@ -270,18 +270,6 @@ class GFL:
         G: grouping matrix
         M: g*s, delay, groups to servers
         """
-        # indx 0 1 2 3 4 5 6 7 8 9 10 11 ... 49999
-        # data 
-        # labls0 0 0 1 1 3 5 7 6 2 3  4
-        # clients [[0 2], [3 6], [10 33], [4 8] [5 9]] list[int]
-        #            [0]  [1 5]  [3 4]    [1 6] [3 2]
-        # group/server  [0, 1, 2, 3, 4, 18 , ...] list[int]
-
-        # n*(n-1)*(n-2)(n-3)...(n-k) 
-        # greedy algorithm n + n-1 + n-2 = O(kn)
-        #               [ 1 ] => [1 2] => [1 2 3/4] more labels
-        #               [ 0 ] => [0 1] => [0 1 3] fewer labels
-        #               [ 1 3 4] random
         
         def clustering(group: 'list[int]') -> 'list[list[int]]':
             """
@@ -295,33 +283,13 @@ class GFL:
                 return -1 if cannot add more set
                 """
                 max_len = 0
-                #min_len = sys.maxsize
                 pos = -1
                 for i, subunion in enumerate(subunions):
-                    #cur_len = len(subunion.difference(cur_set))
                     cur_len = len(subunion.difference(cur_set))
                     if cur_len > max_len:
-                    
-                    #if cur_len <= min_len:
                         pos = i
                         max_len = cur_len
-                        #min_len = cur_len
-                        
-                    #pos = random.randint(0,cur_len)
-                    #pos = random.choice(i)
-                    #pos  = random.choice(subunion)
-                # 1 8 // 3 9 // 6 8 // 2 3 // 1 2 // 2 8 //
-                # group 1 8 size=1
-                # group 1 8, 3 9 =2
-                # group 1 8, 3 9 6 =3
 
-                # size >= 3
-                # group label 1 8 =1
-                # 1 6 8 size=2
-                # 1 2 6 8 size=3
-
-
-                # 1 8 // 2 8 // 1 2
                 return pos
 
             # sets = datasets_to_target_sets(subsets)
@@ -801,6 +769,147 @@ class GFL:
         self.show_group_distribution(clusters[0])
         self.show_group_distribution(clusters[1])
         self.show_group_distribution(clusters[2])
+
+        self.G = np.zeros((len(self.d), group_num), int)
+        # G_size = np.zeros((group_num,))
+        # M = -1 * np.ones((group_num, D.shape[1]))
+
+        group_counter = 0
+        for server, clusters in enumerate(clusters_list):
+            for cluster in clusters:
+                for client in cluster:
+                    self.G[client][group_counter] = 1
+
+                group_counter += 1
+        
+        calc_group_delay()
+
+    def grouping_random_1(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
+        """
+        set
+        G: grouping matrix
+        M: g*s, delay, groups to servers
+        """
+        
+        def clustering(group: 'list[int]') -> 'list[list[int]]':
+            """
+            group a client with another one as long as the group is not iid
+            if the clients are already iid, then all groups have only one client
+            """
+            def find_next(cur_set: set, subunions: 'list[set]') -> int:
+                """
+                return the index if can add more categories
+
+                return -1 if cannot add more set
+                """
+                if len(subunions) == 0:
+                    pos = -1
+                elif len(subunions) == 1:
+                    pos = 0
+                else:
+                    pos = random.randint(0, len(subunions) - 1)
+                    
+                return pos
+
+            # sets = datasets_to_target_sets(subsets)
+            sets: list[set] = []
+            targets = get_targets(self.d[0].dataset)
+            for client in group:
+                new_set = set()
+                for index in self.d[client].indices:
+                    new_set.add(targets[index])
+                sets.append(new_set)
+
+            groups: 'list[list[int]]' = []
+            # indicates unions of current groups
+            unions: 'list[set[int]]' = []
+            # group_labels: set = set()
+            targets_set = set(targets)
+            while len(sets) > 0:
+                # try to get a new group
+                new_group: 'list[list[int]]' = []
+                new_set = set()
+                size_counter = 0
+                
+                #pos = find_next(new_set, sets)
+                pos = find_next(new_set, sets)
+                while pos != -1 and size_counter < self.config.group_size:
+                    new_group.append(group[pos])
+                    new_set = new_set.union(sets[pos])
+                    size_counter += 1
+                    group.pop(pos)
+                    sets.pop(pos)
+
+                    pos = find_next(new_set, sets)
+
+                groups.append(new_group)
+                unions.append(new_set)
+            # replace index with subset
+            # for group in groups:
+            #     for i in range(len(group)):
+            #         group[i] = subsets[group[i]]
+            return groups
+ 
+        def regroup(clusters: 'list[list[int]]', cluster_size: int) -> 'list[list[int]]':
+            """
+            merge any group smaller than given size to another group until reach the size
+            reset G
+            """
+            new_clusters = []
+
+            new_cluster = []
+            for cluster in clusters:
+                if len(new_cluster) + len(cluster) < cluster_size:
+                    new_cluster += cluster
+                else:
+                    new_cluster += cluster
+                    new_clusters.append(new_cluster)
+                    new_cluster = []
+            if new_cluster != [] and len(new_cluster) >= cluster_size/2:
+                new_clusters.append(new_cluster)
+            
+            return new_clusters
+
+        def calc_group_delay() -> np.ndarray:
+            """
+            set
+            M
+            """
+            self.M = np.zeros((self.G.shape[1], self.D.shape[1]))
+
+            # get clients in each group
+            grouping = [ [] for i in range(self.G.shape[1])]
+            for i, client in enumerate(self.G):
+                for j, to_group in enumerate(client):
+                    if self.G[i][j] == 1:
+                        grouping[j].append(i)
+
+            for i, group in enumerate(self.M):
+                for j, to_server in enumerate(group):
+                    # get group i delay to server j
+                    max_delay = 0
+                    for client in grouping[i]:
+                        if self.D[client][j] > max_delay:
+                            max_delay = self.D[client][j]
+                    self.M[i][j] = max_delay
+
+        # group clients by delay to servers
+        groups: list[list[int]] = [ [] for i in range(self.D.shape[1]) ]
+        # clients to their nearest servers
+        server_indices = np.argmin(self.D, 1)
+        for i, server in enumerate(server_indices):
+            groups[server].append(i)
+
+        group_num = 0
+        clusters_list = []
+        # cluster clients to the same server
+        for group in groups:
+            clusters = clustering(group)
+            clusters = regroup(clusters, self.config.regroup_size)
+            clusters_list.append(clusters)
+            group_num += len(clusters)
+
+        self.show_group_distribution(clusters[0])
 
         self.G = np.zeros((len(self.d), group_num), int)
         # G_size = np.zeros((group_num,))

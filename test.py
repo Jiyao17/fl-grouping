@@ -37,18 +37,19 @@ if __name__ == "__main__":
     )
 
     fedavg = GFLConfig(
-        client_num = 1000, lr=0.1, lr_interval=100,
+        client_num = 500, lr=0.1, lr_interval=500,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 300, reselect_interval=300,
+        global_epoch_num= 200, reselect_interval=3000,
 
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5, r = 2, 
-        l = 60, max_delay = 60, max_connection = 5000, 
-        log_interval=5,
+        l = 60, max_delay = 60, max_connection = 5000,
+        log_interval=20,
 
+        grouping_mode='no',
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-        comment="single server fedavg", 
+        comment="single server fedavg",
 
         result_file_accu="./cifar/fedavg/accu",
         result_file_loss="./cifar/fedavg/loss",
@@ -128,14 +129,14 @@ if __name__ == "__main__":
     )
 
     grouping_noiid = GFLConfig(
-        client_num = 500, lr=1, lr_interval=50,
-        data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 100, reselect_interval=3000,
+        client_num = 500, lr=0.1, lr_interval=5,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=10, reselect_interval=3000,
 
         server_num = 1,
-        group_epoch_num=10, local_epoch_num=1, r = 2, 
-        l = 60, max_delay = 60, max_connection = 500, 
-        log_interval=10,
+        group_epoch_num=100, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=1,
 
         grouping_mode='noiid',
         regroup_size=10, # 1: no regrouping,
@@ -147,14 +148,14 @@ if __name__ == "__main__":
     )
 
     grouping_iid = GFLConfig(
-        client_num = 500, lr=1, lr_interval=50,
+        client_num = 500, lr=0.1, lr_interval=5,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 100, reselect_interval=3000,
+        global_epoch_num= 10, reselect_interval=3000,
 
-        server_num = 1,
-        group_epoch_num=10, local_epoch_num=1, r = 2, 
-        l = 60, max_delay = 60, max_connection = 500, 
-        log_interval=10,
+        server_num=1,
+        group_epoch_num=100, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=1,
 
         grouping_mode='iid',
         regroup_size=10, # 1: no regrouping,
@@ -163,6 +164,25 @@ if __name__ == "__main__":
 
         result_file_accu="./cifar/grouping_iid/accu",
         result_file_loss="./cifar/grouping_iid/loss",
+    )
+
+    grouping_random = GFLConfig(
+        client_num = 500, lr=0.1, lr_interval=5,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 10, reselect_interval=3000,
+
+        server_num = 1,
+        group_epoch_num=100, local_epoch_num=1, r = 2, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=1,
+
+        grouping_mode='random',
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="single server random grouping", 
+
+        result_file_accu="./cifar/grouping_random/accu",
+        result_file_loss="./cifar/grouping_random/loss",
     )
 
     ms_grouping = GFLConfig(
@@ -184,38 +204,33 @@ if __name__ == "__main__":
     )
 
     debug = GFLConfig(
-        client_num = 1000, lr=1, lr_interval=3000,
-        data_num_per_client=50, local_batch_size = 50,
+        client_num = 500, lr=1, lr_interval=5,
+        data_num_per_client = 50, local_batch_size = 50,
+        global_epoch_num= 10, reselect_interval=3000,
 
-        global_epoch_num= 1000, reselect_interval=3000,
+        server_num=1,
+        group_epoch_num=10, local_epoch_num=10, r = 2, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=1,
 
-        server_num = 1,
-        group_epoch_num=1, local_epoch_num=1, r = 2, 
-        l = 60, max_delay = 60, max_connection = 200, 
-        log_interval=25,
-
-        # max, min = 1, 1: non-iid FedAvg
-        # max, min = 10, 1: iid-grouping (group size <= 10), no regroup, GFL
-        # max, min = 1, 10: no grouping, regroup to size >= 10
-        # max, min = 10, 20: iid-grouping (group size <= 10) and regroup to size >= 20, AnonyGFL
-        group_size=1, # 1: grouping
-        regroup_size=1, # 1: regrouping,
-
-        comment="grouping, more group epoch",
+        grouping_mode='iid',
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="single server noniid grouping", 
 
         result_file_accu="./cifar/debug/accu",
         result_file_loss="./cifar/debug/loss",
     )
 
     test = GFLConfig(
-        client_num = 500, lr=1, lr_interval=50,
+        client_num = 500, lr=0.1, lr_interval=5,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 100, reselect_interval=3000,
+        global_epoch_num= 10, reselect_interval=3000,
 
-        server_num = 1,
-        group_epoch_num=10, local_epoch_num=1, r = 2, 
-        l = 60, max_delay = 60, max_connection = 500, 
-        log_interval=10,
+        server_num=1,
+        group_epoch_num=10, local_epoch_num=10, r = 2, 
+        l = 60, max_delay = 60, max_connection = 5000, 
+        log_interval=1,
 
         grouping_mode='iid',
         regroup_size=10, # 1: no regrouping,
@@ -245,7 +260,7 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping_noiid
+    config = debug
 
     gfl = GFL(config)
     gfl.train()
