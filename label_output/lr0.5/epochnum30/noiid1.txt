@@ -1,0 +1,24 @@
+tuj90887@dgx-1:~/fl-grouping$ export CUDA_VISIBLE_DEVICES=3
+tuj90887@dgx-1:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[  0   0 425   0   0   0   0  75   0   0]
+Number of data on selected clients: 25000
+[9.68818816 9.68818816 9.58197289 9.58197289 9.58197289 9.31703999
+ 9.22286165 9.25922577 9.22286165 9.11888276]
+lr: 0.500000 -> 0.050000
+accuracy, loss, training loss at round 0: 0.10160, 0.00975, 0.00562
+accuracy, loss, training loss at round 1: 0.10180, 0.00309, 0.00539
+accuracy, loss, training loss at round 2: 0.15430, 0.00272, 0.00464
+accuracy, loss, training loss at round 3: 0.09890, 0.00263, 0.00412
+accuracy, loss, training loss at round 4: 0.13260, 0.00281, 0.00383
+lr: 0.050000 -> 0.005000
+accuracy, loss, training loss at round 5: 0.22220, 0.00212, 0.00872
+accuracy, loss, training loss at round 6: 0.23050, 0.00209, 0.00839
+accuracy, loss, training loss at round 7: 0.24450, 0.00206, 0.00820
+accuracy, loss, training loss at round 8: 0.25240, 0.00204, 0.00803
+accuracy, loss, training loss at round 9: 0.26100, 0.00202, 0.00787
+tuj90887@dgx-1:~/fl-grouping$
+
+
+

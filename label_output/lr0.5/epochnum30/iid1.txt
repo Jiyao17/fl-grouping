@@ -1,0 +1,21 @@
+tuj90887@gpu:~/fl-grouping$ python3 test.py
+Files already downloaded and verified
+Files already downloaded and verified
+[50 50 50 50 50 50 50 50 50 50]
+[50 50 50 50 50 50 50 50 50 50]
+[50 50 50 50 50 50 50 50 50 50]
+Number of data on selected clients: 24850
+[0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+lr: 0.500000 -> 0.050000
+accuracy, loss, training loss at round 0: 0.17890, 0.00229, 0.01268
+accuracy, loss, training loss at round 1: 0.25950, 0.00200, 0.01132
+accuracy, loss, training loss at round 2: 0.28600, 0.00191, 0.01041
+accuracy, loss, training loss at round 3: 0.30400, 0.00187, 0.00975
+accuracy, loss, training loss at round 4: 0.31570, 0.00184, 0.00917
+lr: 0.050000 -> 0.005000
+accuracy, loss, training loss at round 5: 0.35340, 0.00177, 0.01697
+accuracy, loss, training loss at round 6: 0.34940, 0.00177, 0.01648
+accuracy, loss, training loss at round 7: 0.35090, 0.00177, 0.01610
+accuracy, loss, training loss at round 8: 0.35210, 0.00177, 0.01578
+accuracy, loss, training loss at round 9: 0.35130, 0.00177, 0.01548
+tuj90887@gpu:~/fl-grouping$

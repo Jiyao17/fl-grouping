@@ -129,7 +129,7 @@ if __name__ == "__main__":
     )
 
     grouping_noiid = GFLConfig(
-        client_num = 500, lr=1, lr_interval=5,
+        client_num = 500, lr=0.5, lr_interval=5,
         data_num_per_client=50, local_batch_size = 50,
         global_epoch_num=10, reselect_interval=3000,
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     )
 
     grouping_iid = GFLConfig(
-        client_num = 500, lr=1, lr_interval=5,
+        client_num = 500, lr=0.5, lr_interval=5,
         data_num_per_client = 50, local_batch_size = 50,
         global_epoch_num= 10, reselect_interval=3000,
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     )
 
     grouping_random = GFLConfig(
-        client_num = 500, lr=1, lr_interval=5,
+        client_num = 500, lr=0.5, lr_interval=5,
         data_num_per_client = 50, local_batch_size = 50,
         global_epoch_num=10, reselect_interval=3000,
 
@@ -260,9 +260,8 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping
+    config = grouping_noiid
 
     gfl = GFL(config)
     gfl.train()
-
 
