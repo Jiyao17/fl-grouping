@@ -1,0 +1,3 @@
+
+config:{'task_name': 'CIFAR', 'client_num': 500, 'data_num_per_client': 50, 'r': 2, 'server_num': 1, 'l': 60, 'max_delay': 60, 'max_connection': 5000, 'data_path': '../data/', 'global_epoch_num': 10, 'group_epoch_num': 1, 'local_epoch_num': 150, 'lr_interval': 5, 'lr': 0.5, 'batch_size': 50, 'device': 'cuda', 'grouping_mode': 'no', 'log_interval': 1, 'result_file_accu': './cifar/fedavg/accu1', 'result_file_loss': './cifar/fedavg/loss1', 'comment': 'single server fedavg', 'reselect_interval': 3000, 'regroup_size': 1, 'group_size': 1}
+0.01251 0.00656 0.00377 0.00318 0.00309 0.00250 0.00219 0.00204 0.00200 0.00199 

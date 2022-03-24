@@ -1,5 +1,4 @@
 
-from tokenize import group
 import numpy as np
 import torch
 import random
@@ -37,22 +36,22 @@ if __name__ == "__main__":
     )
 
     fedavg = GFLConfig(
-        client_num = 500, lr=1, lr_interval=150,
+        client_num = 500, lr=0.5, lr_interval=5,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 300, reselect_interval=3000,
+        global_epoch_num= 10, reselect_interval=3000,
 
         server_num = 1,
-        group_epoch_num=1, local_epoch_num=5, r = 2, 
+        group_epoch_num=1, local_epoch_num=150, r = 2, 
         l = 60, max_delay = 60, max_connection = 5000,
-        log_interval=150,
+        log_interval=1,
 
         grouping_mode='no',
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
         comment="single server fedavg",
 
-        result_file_accu="./cifar/fedavg/accu",
-        result_file_loss="./cifar/fedavg/loss",
+        result_file_accu="./cifar/fedavg/accu0",
+        result_file_loss="./cifar/fedavg/loss0",
     )
 
     ms_fedavg = GFLConfig(
@@ -143,17 +142,17 @@ if __name__ == "__main__":
         group_size=10, # 1: no grouping,
         comment="single server noniid grouping", 
 
-        result_file_accu="./cifar/grouping_noiid/accu",
-        result_file_loss="./cifar/grouping_noiid/loss",
+        result_file_accu="./cifar/grouping_noiid/accu0",
+        result_file_loss="./cifar/grouping_noiid/loss0",
     )
 
     grouping_iid = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=5,
+        client_num = 500, lr=0.5, lr_interval=7,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 10, reselect_interval=3000,
+        global_epoch_num=15, reselect_interval=3000,
 
         server_num=1,
-        group_epoch_num=30, local_epoch_num=5, r = 2, 
+        group_epoch_num=20, local_epoch_num=5, r = 2, 
         l = 60, max_delay = 60, max_connection = 5000, 
         log_interval=1,
 
@@ -162,8 +161,8 @@ if __name__ == "__main__":
         group_size=10, # 1: no grouping,
         comment="single server noniid grouping", 
 
-        result_file_accu="./cifar/grouping_iid/accu",
-        result_file_loss="./cifar/grouping_iid/loss",
+        result_file_accu="./cifar/grouping_iid/accu0",
+        result_file_loss="./cifar/grouping_iid/loss0",
     )
 
     grouping_random = GFLConfig(
@@ -199,8 +198,8 @@ if __name__ == "__main__":
         group_size=10, # 1: no grouping, now allow grouping
         comment="multi server grouping", 
 
-        result_file_accu="./cifar/multiserver_grouping/accu",
-        result_file_loss="./cifar/multiserver_grouping/loss",
+        result_file_accu="./cifar/multiserver_grouping/accu0",
+        result_file_loss="./cifar/multiserver_grouping/loss0",
     )
 
     debug = GFLConfig(
@@ -260,8 +259,16 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping_noiid
+    config = grouping_iid
+    exp_num = 3
 
-    gfl = GFL(config)
-    gfl.train()
+    # config.use_file(1)
+    # gfl = GFL(config)
+    # gfl.train()
+
+    for i in range(exp_num):
+        config.use_file(i)
+        gfl = GFL(config)
+        gfl.train()
+
 

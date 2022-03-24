@@ -153,6 +153,11 @@ class GFLConfig:
         self.reselect_interval = reselect_interval
         self.regroup_size = regroup_size
         self.group_size = group_size
+    
+    def use_file(self, num: int):
+        self.result_file_accu = self.result_file_accu[0:-1] + str(num)
+        self.result_file_loss = self.result_file_loss[0:-1] + str(num)
+
 
 class GFL:
 
