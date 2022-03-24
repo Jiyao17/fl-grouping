@@ -180,8 +180,8 @@ if __name__ == "__main__":
         group_size=10, # 1: no grouping,
         comment="single server random grouping", 
 
-        result_file_accu="./cifar/grouping_random/accu",
-        result_file_loss="./cifar/grouping_random/loss",
+        result_file_accu="./cifar/grouping_random/accu0",
+        result_file_loss="./cifar/grouping_random/loss0",
     )
 
     ms_grouping = GFLConfig(
