@@ -166,14 +166,14 @@ if __name__ == "__main__":
     )
 
     grouping_random = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=5,
+        client_num = 500, lr=0.5, lr_interval=750,
         data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num=10, reselect_interval=3000,
+        global_epoch_num=1500, reselect_interval=3000,
 
         server_num = 1,
-        group_epoch_num=30, local_epoch_num=5, r = 2, 
+        group_epoch_num=1, local_epoch_num=5, r = 2, 
         l = 60, max_delay = 60, max_connection = 5000, 
-        log_interval=1,
+        log_interval=30,
 
         grouping_mode='random',
         regroup_size=10, # 1: no regrouping,
@@ -259,7 +259,7 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping_iid
+    config = grouping_random
     exp_num = 3
 
     # config.use_file(1)

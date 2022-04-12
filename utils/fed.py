@@ -86,12 +86,14 @@ class Client:
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         self.train_loss = None
+        self.gradient_norm = 0
 
     def train(self):
         self.model.to(self.device)
         self.model.train()
 
         self.train_loss = 0
+        self.gradient_norm = 0
 
         for i in range(self.local_epoch_num):
             for (image, label) in self.trainloader:
@@ -102,8 +104,14 @@ class Client:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+                # get gradient 
+                for param in self.model.parameters():
+                    norm = param.grad.detach().data.norm(2)
+                    self.gradient_norm += norm.item() ** 2
         
-        return self.train_loss / self.local_epoch_num
+        self.gradient_norm /= self.local_epoch_num * self.batch_size
+        self.train_loss /= self.local_epoch_num * self.batch_size
+        return self.train_loss
 
     def set_lr(self, new_lr):
         self.lr = new_lr
@@ -983,6 +991,13 @@ class GFL:
                     stds[i] += (label_list[i][j] - avg) ** 2 / len(group)
 
             return stds
+
+        def calc_gradient_by_group() -> np.ndarray:
+
+            grads = np.zeros((self.G.shape[1],))
+            for i, grad in enumerate(self.all_gradients):
+                grads[i] = np.sum(grad)
+
 
         self.global_distribution()
 
