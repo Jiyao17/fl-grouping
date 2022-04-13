@@ -197,3 +197,17 @@ def subset_distribution(subset: Subset) -> np.ndarray:
             labels[label] += 1
 
         return labels
+
+def partition_distribution(d: 'list[Subset]') -> 'list[np.ndarray]':
+    """
+    return a numpy array of shape (len(d), len(d[0].targets))
+    """
+    lable_list = get_targets_set_as_list(d[0].dataset)
+    labels_on_clients = [ np.zeros(shape=(len(lable_list),), dtype=np.int32,) for i in range(len(d)) ]
+    for i, subset in enumerate(d):
+        indices = subset.indices
+        for index in indices:
+            (image, label) = subset.dataset[index]
+            labels_on_clients[i][label] += 1
+
+    return labels_on_clients

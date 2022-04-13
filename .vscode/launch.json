@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Python: sim",
             "type": "python",
@@ -21,11 +22,13 @@
             "env": {"CUDA_VISIBLE_DEVICES": "3,"}
         },
         {
-            "name": "Python: test.py",
+            "name": "Python: main.py",
             "type": "python",
             "request": "launch",
-            "program": "test.py",
-            "console": "integratedTerminal"
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "env": {"CUDA_VISIBLE_DEVICES": "3,"}
+
         }
     ]
 }

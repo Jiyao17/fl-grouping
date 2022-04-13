@@ -222,19 +222,23 @@ if __name__ == "__main__":
     )
 
     test = GFLConfig(
-        client_num = 100, lr=0.1, lr_interval=50,
+        client_num = 10, lr=0.5, lr_interval=50,
         data_num_per_client=100, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
         server_num = 1,
-        group_epoch_num=1, local_epoch_num=5, r = 2, 
+        group_epoch_num=1, local_epoch_num=5, 
+        r = 2, partition_mode='iid_and_noniid', iid_proportion=0.5,
         l = 60, max_delay = 60, max_connection = 20, 
         log_interval=1,
 
-        grouping_mode='noiid',
+
+        grouping_mode='random',
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-        comment="single server noniid grouping", 
+
+
+        comment="single server iid_and_noniid no grouping", 
 
         result_file_accu="./cifar/test/accu",
         result_file_loss="./cifar/test/loss",
@@ -259,7 +263,7 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping_noiid
+    config = test
     exp_num = 1
 
     # config.use_file(1)

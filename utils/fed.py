@@ -14,7 +14,7 @@ import numpy as np
 from utils.data import load_dataset
 from utils.sim import init_settings
 from utils.model import test_model, CIFARResNet
-from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets
+from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets, partition_distribution
 
 import sys
 
@@ -86,14 +86,15 @@ class Client:
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         self.train_loss = None
-        self.grad: list[torch.Tensor] = []
+        self.grad: list[torch.Tensor] = [ param.clone().to(self.device) for param in self.model.parameters()]
 
     def train(self):
         self.model.to(self.device)
         self.model.train()
 
         self.train_loss = 0
-        self.grad = [ 0 for param in self.model.parameters()]
+        for tensor in self.grad:
+            tensor.zero_()
 
         for i in range(self.local_epoch_num):
             for (image, label) in self.trainloader:
@@ -131,6 +132,9 @@ class GFLConfig:
         reselect_interval=20,
         regroup_size=20,
         group_size=100,
+        # data partition settings
+        partition_mode="noniid",
+        iid_proportion=0.5,
         ) -> None:
 
         self.task_name = task_name
@@ -161,6 +165,9 @@ class GFLConfig:
         self.reselect_interval = reselect_interval
         self.regroup_size = regroup_size
         self.group_size = group_size
+
+        self.partition_mode = partition_mode
+        self.iid_proportion = iid_proportion
     
     def use_file(self, num: int):
         self.result_file_accu = self.result_file_accu[0:-1] + str(num)
@@ -197,6 +204,7 @@ class GFL:
         G_T = self.G.transpose()
         for i, selected in enumerate(selected_flags):
             if selected == 1:
+                self.selected_groups_by_group_num.append(i)
                 new_group = []
                 size = 0
                 for j, client in enumerate(G_T[i]):
@@ -221,7 +229,10 @@ class GFL:
             self.config.task_name, self.config.data_path)
         self.d, self.D, self.B = init_settings(self.trainset, self.config.client_num,
             self.config.data_num_per_client, self.config.r, self.config.server_num,
-            self.config.max_delay, self.config.max_connection)
+            self.config.max_delay, self.config.max_connection, 
+            self.config.partition_mode, self.config.iid_proportion)
+        distributoin = partition_distribution(self.d)
+        print("distribution:", distributoin)
         self.testloader = DataLoader(self.testset, 1000, drop_last=True)
         self.model, self.clients = Client.init_clients(self.d, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
 
@@ -230,6 +241,7 @@ class GFL:
         self.M: np.ndarray = None
         self.selected_groups: list[list[int]] = []
         self.selected_groups_size: list[int] = []
+        self.selected_groups_by_group_num: list[int] = []
         self.all_groups: list[list[int]] = []
         self.all_groups_size: list[int] = []
 
@@ -258,6 +270,8 @@ class GFL:
         for i in range(self.config.global_epoch_num):
             if i == 0:
                 self.group_selection(initial=True)
+            elif i % self.config.reselect_interval == 0:
+                self.group_selection(initial=False)
 
             if i % self.config.lr_interval == 0:
                 lr = self.clients[0].lr
@@ -419,9 +433,11 @@ class GFL:
                 group_counter += 1
         
         calc_group_delay()
+        self.set_all_groups()
 
     def grouping_random(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
         """
+        obsolete
         set
         G: grouping matrix
         M: g*s, delay, groups to servers
@@ -940,6 +956,7 @@ class GFL:
                 group_counter += 1
         
         calc_group_delay()
+        self.set_all_groups()
 
     def group_selection(self, initial: bool = False):
         """
@@ -998,17 +1015,17 @@ class GFL:
         def calc_gradient_by_group() -> np.ndarray:
 
             grads: list[list[torch.Tensor]] = [ 
-                [ 0 for param in self.clients[0].model.parameters() ] 
+                [ tensor.clone().zero_() for tensor in self.clients[0].grad ] 
                     for i in range(self.G.shape[1]) ]
             for i, group in enumerate(self.all_groups):
                 for client in group:
-                    for k, data in enumerate(self.clients[0].model.parameters()):
-                        grads[i][k] += self.clients[client].grad[k]
+                    for k, tensor in enumerate(self.clients[0].grad):
+                        grads[i][k] += self.clients[client].grad[k].clone()
                     
             grads_norms = np.zeros((self.G.shape[1],))
             for i, group in enumerate(grads):
-                for k, data in enumerate(group):
-                    grads_norms[i] += data.norm(2) ** 2
+                for k, tensor in enumerate(group):
+                    grads_norms[i] += tensor.clone().norm(2) ** 2
 
             return grads_norms
 

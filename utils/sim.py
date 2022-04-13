@@ -9,9 +9,12 @@ from torch.utils.data import dataset
 from torch.utils.data.dataset import Subset
 from torch.utils.data import DataLoader
 
-from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets
+from utils.data import dataset_split_r_random, dataset_split_r_random_with_iid_datasets
 
-def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection) \
+def init_settings(
+    trainset, client_num, data_num_per_client, 
+    r, server_num, max_delay, max_connection,
+    partition_mode='noniid', proportion=0.5) \
     -> 'tuple[list[Subset], np.ndarray, np.ndarray]':
     """
     return initial
@@ -20,8 +23,10 @@ def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_
     B: 1*s, bandwidth vector
     """
 
-
-    indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
+    if partition_mode == 'noniid':
+        indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
+    elif partition_mode == 'iid_and_noniid':
+        indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, r, proportion)
     d = [ Subset(trainset, indexes) for indexes in indexes_list ]
 
     D = np.random.rand(client_num, server_num) * max_delay
