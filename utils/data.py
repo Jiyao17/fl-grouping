@@ -6,6 +6,7 @@ from torch.utils.data.dataset import Dataset, Subset
 import numpy as np
 
 import random
+import math
 
 def load_dataset_CIFAR(data_path: str, dataset_type: str="both"):
     # enhance
@@ -46,7 +47,7 @@ def get_targets(dataset: Dataset) -> list:
     
     return targets
 
-def get_targets_set(dataset: Dataset) -> list:
+def get_targets_set_as_list(dataset: Dataset) -> list:
     targets = dataset.targets
     if type(targets) is not list:
         targets = targets.tolist()
@@ -80,10 +81,82 @@ def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
     # subsets = [Subset(dataset, indices) for indices in indices_by_lable]
     return indices_by_lable
 
+def dataset_split_r_random_with_iid_datasets(
+    dataset: Dataset, subset_num: int, subset_size: int,
+    r: int, iid_proportion: float=0.5) \
+     -> 'list[list[int]]':
+    """
+    similar to dataset_split_r_random
+    but partial datasets are iid
+    thus some datasets are noniid with degree r,
+    some are iid (occupy iid_propotion of total datasets)
+    """
+    
+    if subset_size * subset_num > len(dataset):
+        raise "Cannot partition dataset as required."
+    
+    iid_num = int(subset_num * iid_proportion)
+    noniid_num = subset_num - iid_num
+
+    # each dataset contains r types of data
+    categorized_index_list = dataset_categorize(dataset)
+    shard_size = math.gcd(int(subset_size / len(categorized_index_list)), int(subset_size/r))
+    shards_lists = [ [] for i in range(len(categorized_index_list)) ]
+    for i, one_category in enumerate(categorized_index_list):
+        shard_counter = 0
+        while (shard_counter + 1) * shard_size <= len(one_category):
+            shards_lists[i].append(one_category[shard_counter*shard_size: (shard_counter+1)*shard_size])
+            shard_counter += 1
+        # shards_list.append(one_category[shard_counter*shard_size:])
+
+    # iid datasets
+    iid_datasets = []
+    for i in range(iid_num):
+        iid_set = []
+        shard_index = 0
+        # select one shard of each kind of data
+        while len(iid_set) < subset_size:
+            # bug: if len(shards_lists[shard_index]) == 0, then shard_index += 1
+            shard = shards_lists[shard_index].pop()
+            iid_set += shard
+            shard_index = (shard_index + 1) % len(shards_lists)
+        iid_datasets.append(iid_set)
+    
+    # noniid datasets
+    noniid_datasets = []
+    for i in range(noniid_num):
+        noniid_set = []
+        total_shard_num = subset_size/shard_size
+        one_type_shard_num = int(total_shard_num / r)
+
+        counter = 0
+        # select r knids of data
+        for j in range(r):
+            counter = 0
+            target_type = random.randint(0, len(shards_lists)-1)
+            # no more shard of this type
+            while len(shards_lists[target_type]) < one_type_shard_num:
+                counter += 1
+                target_type = (target_type + 1) % len(shards_lists)
+                if(counter > 10):
+                    break
+            # select shards of this type
+            for k in range(one_type_shard_num):
+                shard = shards_lists[target_type].pop()
+                noniid_set += shard
+        if counter > 10:
+            break
+        else:
+            noniid_datasets.append(noniid_set)
+    
+    # combine iid and noniid datasets
+    indices_list = iid_datasets + noniid_datasets
+    return indices_list
+
 def dataset_split_r_random(dataset: Dataset, subset_num, subset_size, r: int) \
      -> 'list[list[int]]':
     """
-    within a dataset, r types are distinct
+    within a dataset, r types may not be distinct
 
     revised and tested
     """
@@ -115,4 +188,12 @@ def dataset_split_r_random(dataset: Dataset, subset_num, subset_size, r: int) \
     
     return indices_list
 
+def subset_distribution(subset: Subset) -> np.ndarray:
+        lable_list = get_targets_set_as_list(subset.dataset)
+        labels = np.zeros(shape=(len(lable_list),), dtype=np.int32,)
+        indices = subset.indices
+        for index in indices:
+            (image, label) = subset.dataset[index]
+            labels[label] += 1
 
+        return labels

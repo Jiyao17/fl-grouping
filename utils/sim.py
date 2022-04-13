@@ -9,7 +9,7 @@ from torch.utils.data import dataset
 from torch.utils.data.dataset import Subset
 from torch.utils.data import DataLoader
 
-from utils.data import dataset_split_r_random, get_targets_set, get_targets
+from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets
 
 def init_settings(trainset, client_num, data_num_per_client, r, server_num, max_delay, max_connection) \
     -> 'tuple[list[Subset], np.ndarray, np.ndarray]':

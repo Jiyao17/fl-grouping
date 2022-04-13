@@ -14,7 +14,7 @@ import numpy as np
 from utils.data import load_dataset
 from utils.sim import init_settings
 from utils.model import test_model, CIFARResNet
-from utils.data import dataset_split_r_random, get_targets_set, get_targets
+from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets
 
 import sys
 
@@ -257,9 +257,7 @@ class GFL:
     def train(self):
         for i in range(self.config.global_epoch_num):
             if i == 0:
-                self.initial_selection()
-            else:
-                self.group_selection()
+                self.group_selection(initial=True)
 
             if i % self.config.lr_interval == 0:
                 lr = self.clients[0].lr
@@ -943,7 +941,7 @@ class GFL:
         
         calc_group_delay()
 
-    def group_selection(self):
+    def group_selection(self, initial: bool = False):
         """
         set
         A: g*s, group assignment matrix
@@ -979,7 +977,7 @@ class GFL:
             """
 
             stds = np.zeros((self.G.shape[1],))
-            label_num = len(get_targets_set(self.d[0].dataset))
+            label_num = len(get_targets_set_as_list(self.d[0].dataset))
             label_list = np.zeros((self.G.shape[1], label_num))
 
             targets = get_targets(self.d[0].dataset)
@@ -1014,9 +1012,13 @@ class GFL:
 
             return grads_norms
 
+        def initial_train() -> None:
+            for i, client in enumerate(self.clients):
+                    client.train()
 
         self.global_distribution()
-
+        if initial:
+            initial_train()
         # losses = calc_loss_by_group()
         # stds = calc_stds()
         grad_norms = calc_gradient_by_group()
@@ -1050,7 +1052,7 @@ class GFL:
         self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
         # print(np.exp(losses + 1)[:10])
-        print(grad_norms[:10])
+        print("grads", grad_norms)
 
     def initial_selection(self):
         """
@@ -1112,7 +1114,7 @@ class GFL:
         self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
         # print(np.exp(losses + 1)[:10])
-        print("grads:", grad_norms[:10])
+        print("grads:", grad_norms)
 
     def global_distribution(self) -> None:
         for client in self.clients:
