@@ -128,13 +128,13 @@ if __name__ == "__main__":
     )
 
     grouping_noiid = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=5,
+        client_num = 100, lr=0.5, lr_interval=5,
         data_num_per_client=50, local_batch_size = 50,
-        global_epoch_num=10, reselect_interval=3000,
+        global_epoch_num=10, reselect_interval=1,
 
         server_num = 1,
-        group_epoch_num=30, local_epoch_num=5, r = 2, 
-        l = 60, max_delay = 60, max_connection = 5000, 
+        group_epoch_num=5, local_epoch_num=5, r = 2, 
+        l = 60, max_delay = 60, max_connection = 30, 
         log_interval=1,
 
         grouping_mode='noiid',
@@ -259,8 +259,8 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss",
     )
 
-    config = grouping_random
-    exp_num = 3
+    config = noniid
+    exp_num = 1
 
     # config.use_file(1)
     # gfl = GFL(config)

@@ -86,14 +86,14 @@ class Client:
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         self.train_loss = None
-        self.gradient_norm = 0
+        self.grad: list[torch.Tensor] = []
 
     def train(self):
         self.model.to(self.device)
         self.model.train()
 
         self.train_loss = 0
-        self.gradient_norm = 0
+        self.grad = [ 0 for param in self.model.parameters()]
 
         for i in range(self.local_epoch_num):
             for (image, label) in self.trainloader:
@@ -105,11 +105,11 @@ class Client:
                 loss.backward()
                 self.optimizer.step()
                 # get gradient 
-                for param in self.model.parameters():
-                    norm = param.grad.detach().data.norm(2)
-                    self.gradient_norm += norm.item() ** 2
+                for i, param in enumerate(self.model.parameters()):
+                    self.grad[i] += param.grad.detach().data
         
-        self.gradient_norm /= self.local_epoch_num * self.batch_size
+        for i, param in enumerate(self.model.parameters()):
+            self.grad[i] /= self.local_epoch_num * self.batch_size
         self.train_loss /= self.local_epoch_num * self.batch_size
         return self.train_loss
 
@@ -233,6 +233,7 @@ class GFL:
         self.all_groups: list[list[int]] = []
         self.all_groups_size: list[int] = []
 
+        # grouping
         if self.config.grouping_mode == 'noiid':
             self.grouping_noniid()
         elif self.config.grouping_mode == 'iid':
@@ -255,7 +256,9 @@ class GFL:
 
     def train(self):
         for i in range(self.config.global_epoch_num):
-            if i % self.config.reselect_interval == 0:
+            if i == 0:
+                self.initial_selection()
+            else:
                 self.group_selection()
 
             if i % self.config.lr_interval == 0:
@@ -656,6 +659,7 @@ class GFL:
                 group_counter += 1
         
         calc_group_delay()
+        self.set_all_groups()
 
     def grouping_iid(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
         """
@@ -780,8 +784,8 @@ class GFL:
             group_num += len(clusters)
 
         self.show_group_distribution(clusters[0])
-        self.show_group_distribution(clusters[1])
-        self.show_group_distribution(clusters[2])
+        # self.show_group_distribution(clusters[1])
+        # self.show_group_distribution(clusters[2])
 
         self.G = np.zeros((len(self.d), group_num), int)
         # G_size = np.zeros((group_num,))
@@ -796,6 +800,7 @@ class GFL:
                 group_counter += 1
         
         calc_group_delay()
+        self.set_all_groups()
 
     def grouping_random_1(self) -> 'tuple[np.ndarray, np.ndarray, np.ndarray]':
         """
@@ -994,23 +999,35 @@ class GFL:
 
         def calc_gradient_by_group() -> np.ndarray:
 
-            grads = np.zeros((self.G.shape[1],))
-            for i, grad in enumerate(self.all_gradients):
-                grads[i] = np.sum(grad)
+            grads: list[list[torch.Tensor]] = [ 
+                [ 0 for param in self.clients[0].model.parameters() ] 
+                    for i in range(self.G.shape[1]) ]
+            for i, group in enumerate(self.all_groups):
+                for client in group:
+                    for k, data in enumerate(self.clients[0].model.parameters()):
+                        grads[i][k] += self.clients[client].grad[k]
+                    
+            grads_norms = np.zeros((self.G.shape[1],))
+            for i, group in enumerate(grads):
+                for k, data in enumerate(group):
+                    grads_norms[i] += data.norm(2) ** 2
+
+            return grads_norms
 
 
         self.global_distribution()
 
         # losses = calc_loss_by_group()
-        stds = calc_stds()
+        # stds = calc_stds()
+        grad_norms = calc_gradient_by_group()
 
         # rank all groups by quality
         # Q = np.exp(1 + losses) - np.log(stds + 1)
-        Q = np.log(stds + 1)
+        Q = grad_norms
         seq = [ i for i in range(Q.shape[0])]
         Q_sorted = sorted(zip(Q, seq))
         # from greater to smaller
-        # Q_sorted.reverse()
+        Q_sorted.reverse()
 
         group_size_by_client = np.zeros((self.G.shape[1],))
         for i, client in enumerate(self.G):
@@ -1033,7 +1050,69 @@ class GFL:
         self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
         # print(np.exp(losses + 1)[:10])
-        print(np.log(stds + 1)[:10])
+        print(grad_norms[:10])
+
+    def initial_selection(self):
+        """
+        do grouping before calling this funciton
+        set
+        A: g*s, group assignment matrix
+        """
+        def initial_train() -> None:
+            for i, client in enumerate(self.clients):
+                    client.train()
+
+        def calc_gradient_by_group() -> np.ndarray:
+
+            grads: list[list[torch.Tensor]] = [ 
+                [ 0 for param in self.clients[0].model.parameters() ] 
+                    for i in range(self.G.shape[1]) ]
+            for i, group in enumerate(self.all_groups):
+                for client in group:
+                    for k, data in enumerate(self.clients[0].model.parameters()):
+                        grads[i][k] += self.clients[client].grad[k]
+                    
+            grads_norms = np.zeros((self.G.shape[1],))
+            for i, group in enumerate(grads):
+                for k, data in enumerate(group):
+                    grads_norms[i] += data.norm(2) ** 2
+
+            return grads_norms
+
+        self.global_distribution()
+        initial_train()
+        grad_norms = calc_gradient_by_group()
+
+        # rank all groups by quality
+        # Q = np.exp(1 + losses) - np.log(stds + 1)
+        Q = grad_norms
+        seq = [ i for i in range(Q.shape[0])]
+        Q_sorted = sorted(zip(Q, seq))
+        # from greater to smaller
+        Q_sorted.reverse()
+
+        group_size_by_client = np.zeros((self.G.shape[1],))
+        for i, client in enumerate(self.G):
+            for j, to_group in enumerate(client):
+                if self.G[i][j] == 1:
+                    group_size_by_client[j] += 1
+
+        B_temp = np.zeros((self.B.shape[0],))
+        self.A = np.zeros(self.M.shape)
+        group_assigned = np.zeros(self.A.shape[0])
+        for (quality, seq) in Q_sorted:
+            for j, to_server in enumerate(self.A[seq]):
+                if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                    B_temp[j] += group_size_by_client[seq]
+                    self.A[seq][j] = 1
+                    group_assigned[seq] = 1
+                else:
+                    self.A[seq][j] = 0
+
+        self.set_selected_groups()
+        print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
+        # print(np.exp(losses + 1)[:10])
+        print("grads:", grad_norms[:10])
 
     def global_distribution(self) -> None:
         for client in self.clients:
