@@ -9,55 +9,25 @@ from torch.utils.data import dataset
 from torch.utils.data.dataset import Subset
 from torch.utils.data import DataLoader
 
-from utils.data import dataset_split_r_random, dataset_split_r_random_with_iid_datasets
-
-def init_settings(
-    trainset, client_num, data_num_per_client, 
-    r, server_num, max_delay, max_connection,
-    partition_mode='noniid', proportion=0.5) \
-    -> 'tuple[list[Subset], np.ndarray, np.ndarray]':
-    """
-    return initial
-    d: 1*c, datasets on clients
-    D: c*s, delay matrix
-    B: 1*s, bandwidth vector
-    """
-
-    if partition_mode == 'noniid':
-        indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
-    elif partition_mode == 'iid_and_noniid':
-        indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, r, proportion)
-    d = [ Subset(trainset, indexes) for indexes in indexes_list ]
-
-    D = np.random.rand(client_num, server_num) * max_delay
-
-    B = np.random.rand(server_num) # 0.2 0.3 0.3
-    sum = np.sum(B) # 0.8
-    # 0.2/0.8*100 0.3/0.8 0.3/0.8 = 1
-    B = B / sum * max_connection
-    B = B.astype(int)
-
-    return d, D, B
 
 
-
-def compare_models(model: nn.Module, clients: 'list[Client]', num: int):
-    def print_params(model: nn.Module, num: int):
-        counter = 1
-        for name, param in model.state_dict().items():
-            if counter > num:
-                break
-            else:
-                print(param[0][0], end="")
-                counter += 1
+# def compare_models(model: nn.Module, clients: 'list[Client]', num: int):
+#     def print_params(model: nn.Module, num: int):
+#         counter = 1
+#         for name, param in model.state_dict().items():
+#             if counter > num:
+#                 break
+#             else:
+#                 print(param[0][0], end="")
+#                 counter += 1
         
-        print("")
+#         print("")
 
 
-    print_params(model, num)
-    print_params(clients[0].model, num)
-    print_params(clients[len(clients)//2].model, num)
-    print_params(clients[-1].model, num)
+#     print_params(model, num)
+#     print_params(clients[0].model, num)
+#     print_params(clients[len(clients)//2].model, num)
+#     print_params(clients[-1].model, num)
 
 
 # def regroup(G: np.ndarray, A: np.ndarray, s: int) -> 'tuple[np.ndarry, np.ndarry]':

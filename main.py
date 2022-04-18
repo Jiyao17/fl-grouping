@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import random
 
-
 from utils.fed import GFL, GFLConfig
 
 if __name__ == "__main__":
@@ -36,18 +35,21 @@ if __name__ == "__main__":
     )
 
     fedavg = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=5,
-        data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 10, reselect_interval=3000,
+        client_num = 100, lr=0.5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
 
         server_num = 1,
-        group_epoch_num=1, local_epoch_num=150, r = 2, 
-        l = 60, max_delay = 60, max_connection = 5000,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode='iid_and_noniid', iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 1000,
         log_interval=1,
 
-        grouping_mode='no',
+
+        grouping_mode='random',
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
+
         comment="single server fedavg",
 
         result_file_accu="./cifar/fedavg/accu0",
@@ -203,64 +205,66 @@ if __name__ == "__main__":
     )
 
     debug = GFLConfig(
-        client_num = 500, lr=1, lr_interval=5,
-        data_num_per_client = 50, local_batch_size = 50,
-        global_epoch_num= 10, reselect_interval=3000,
+        client_num = 500, lr=0.1, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
 
-        server_num=1,
-        group_epoch_num=10, local_epoch_num=10, r = 2, 
-        l = 60, max_delay = 60, max_connection = 5000, 
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 100,
         log_interval=1,
 
-        grouping_mode='iid',
-        regroup_size=10, # 1: no regrouping,
-        group_size=10, # 1: no grouping,
-        comment="single server noniid grouping", 
+        selection_mode=GFLConfig.SelectionMode.GRADIENT_RANKING_RT,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=1, # 1: no regrouping,
+        group_size=1, # 1: no grouping,
+        comment="single server iid_and_noniid no grouping, gradient ranking real time selection",
+
 
         result_file_accu="./cifar/debug/accu",
         result_file_loss="./cifar/debug/loss",
     )
 
     test = GFLConfig(
-        client_num = 10, lr=0.5, lr_interval=50,
-        data_num_per_client=100, local_batch_size = 50,
+        client_num = 500, lr=0.5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
         server_num = 1,
-        group_epoch_num=1, local_epoch_num=5, 
-        r = 2, partition_mode='iid_and_noniid', iid_proportion=0.5,
-        l = 60, max_delay = 60, max_connection = 20, 
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 100,
         log_interval=1,
 
-
-        grouping_mode='random',
+        selection_mode=GFLConfig.SelectionMode.LOW_STD_GRADIENT_RANKING,
+        grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-
-
-        comment="single server iid_and_noniid no grouping", 
+        comment="single server iid_and_noniid no grouping, random selection",
 
         result_file_accu="./cifar/test/accu",
         result_file_loss="./cifar/test/loss",
     )
 
     iid = GFLConfig(
-        client_num = 2500, lr=0.1, lr_interval=100,
-        data_num_per_client=20, local_batch_size = 20,
-        global_epoch_num= 300, reselect_interval=300,
+        client_num = 500, lr=0.5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
 
-        server_num = 10,
-        group_epoch_num=5, local_epoch_num=1, r = 2, 
-        l = 60, max_delay = 120, max_connection = 500, 
-        log_interval=10,
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 100,
+        log_interval=1,
 
-        group_size=1, # 1: grouping
-        regroup_size=1, # 1: regrouping,
-
-        comment="test",
-
-        result_file_accu="./cifar/iid/accu",
-        result_file_loss="./cifar/iid/loss",
+        selection_mode=GFLConfig.SelectionMode.STD,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=1, # 1: no regrouping,
+        group_size=1, # 1: no grouping,
+        comment="single server iid_and_noniid, no grouping, iid selection",
+        result_file_accu="./cifar/iid/accu0",
+        result_file_loss="./cifar/iid/loss0",
     )
 
     config = test

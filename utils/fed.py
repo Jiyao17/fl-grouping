@@ -8,15 +8,17 @@ from torch import nn
 from torch.utils.data.dataset import Subset
 import torch
 
-
 import numpy as np
 
 from utils.data import load_dataset
-from utils.sim import init_settings
 from utils.model import test_model, CIFARResNet
-from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets, partition_distribution
+from utils.data import dataset_split_r_random, get_targets_set_as_list, get_targets, partition_distribution, dataset_split_r_random_with_iid_datasets
+
 
 import sys
+
+from enum import Enum
+
 
 def calc_dist(model: nn.Module, global_model: nn.Module, device) -> np.ndarray:
     """
@@ -119,12 +121,32 @@ class Client:
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
 class GFLConfig:
+    class SelectionMode(Enum):
+        GRADIENT_RANKING = 1
+        GRADIENT_PROB = 2
+        RANDOM = 3
+        GRADIENT_RANKING_RT = 4
+        STD = 5
+        LOW_STD_GRADIENT_RANKING_RT = 6
+        LOW_STD_GRADIENT_RANKING = 7
+
+    class GroupingMode(Enum):
+        IID = 1
+        NONIID = 2
+        RANDOM = 3
+    
+    class PartitionMode(Enum):
+        IID = 1
+        NONIID = 2
+        RANDOM = 3
+        IID_AND_NON_IID = 1
+
     def __init__(self, task_name="CIFAR", client_num=5000, data_num_per_client=10, r=5, server_num=10, 
         l=60, max_delay=90, max_connection=1000,
         data_path="../data/", global_epoch_num=500, group_epoch_num=1,
         local_epoch_num=5, lr=0.1, lr_interval=100,
         local_batch_size=10, device="cuda", log_interval=5, 
-        grouping_mode="iid",
+        grouping_mode=GroupingMode.IID,
         result_file_accu="./cifar/grouping/accu", 
         result_file_loss="./cifar/grouping/loss",
         comment="",
@@ -132,8 +154,9 @@ class GFLConfig:
         reselect_interval=20,
         regroup_size=20,
         group_size=100,
+        selection_mode=SelectionMode.GRADIENT_RANKING,
         # data partition settings
-        partition_mode="noniid",
+        partition_mode=PartitionMode.IID,
         iid_proportion=0.5,
         ) -> None:
 
@@ -161,7 +184,8 @@ class GFLConfig:
         self.result_file_loss = result_file_loss
         
         self.comment = comment
-        
+        # GFL specific settings
+        self.selection_mode = selection_mode
         self.reselect_interval = reselect_interval
         self.regroup_size = regroup_size
         self.group_size = group_size
@@ -175,6 +199,34 @@ class GFLConfig:
 
 
 class GFL:
+    
+    def init_settings(self,
+        trainset, client_num, data_num_per_client, 
+        r, server_num, max_delay, max_connection,
+        partition_mode=GFLConfig.PartitionMode, proportion=0.5) \
+        -> 'tuple[list[Subset], np.ndarray, np.ndarray]':
+        """
+        return initial
+        d: 1*c, datasets on clients
+        D: c*s, delay matrix
+        B: 1*s, bandwidth vector
+        """
+
+        if partition_mode == GFLConfig.PartitionMode.NONIID:
+            indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
+        elif partition_mode == GFLConfig.PartitionMode.IID_AND_NON_IID:
+            indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, r, proportion)
+        d = [ Subset(trainset, indexes) for indexes in indexes_list ]
+
+        D = np.random.rand(client_num, server_num) * max_delay
+
+        B = np.random.rand(server_num) # 0.2 0.3 0.3
+        sum = np.sum(B) # 0.8
+        # 0.2/0.8*100 0.3/0.8 0.3/0.8 = 1
+        B = B / sum * max_connection
+        B = B.astype(int)
+
+        return d, D, B
 
     def set_all_groups(self) -> 'tuple[list[list[int]], list[int]]':
         # set the following two fields
@@ -215,6 +267,10 @@ class GFL:
                 self.selected_groups.append(new_group)
                 self.selected_groups_size.append(size)
 
+    def set_all_groups_selected(self):
+        self.selected_groups = deepcopy(self.all_groups)
+        self.selected_groups_size = deepcopy(self.all_groups_size)
+
     def __init__(self, config: GFLConfig) -> None:
         self.config = deepcopy(config)
 
@@ -227,7 +283,7 @@ class GFL:
 
         self.trainset, self.testset = load_dataset(
             self.config.task_name, self.config.data_path)
-        self.d, self.D, self.B = init_settings(self.trainset, self.config.client_num,
+        self.d, self.D, self.B = self.init_settings(self.trainset, self.config.client_num,
             self.config.data_num_per_client, self.config.r, self.config.server_num,
             self.config.max_delay, self.config.max_connection, 
             self.config.partition_mode, self.config.iid_proportion)
@@ -239,6 +295,7 @@ class GFL:
 
         self.G: np.ndarray = None
         self.M: np.ndarray = None
+        self.stds = None
         self.selected_groups: list[list[int]] = []
         self.selected_groups_size: list[int] = []
         self.selected_groups_by_group_num: list[int] = []
@@ -246,25 +303,14 @@ class GFL:
         self.all_groups_size: list[int] = []
 
         # grouping
-        if self.config.grouping_mode == 'noiid':
+        if self.config.grouping_mode == GFLConfig.GroupingMode.NONIID:
             self.grouping_noniid()
-        elif self.config.grouping_mode == 'iid':
+        elif self.config.grouping_mode == GFLConfig.GroupingMode.IID:
             self.grouping_iid()
-        elif self.config.grouping_mode == 'random':
+        elif self.config.grouping_mode == GFLConfig.GroupingMode.RANDOM:
             self.grouping_random_1()
         else:
             self.grouping_default()
-        
-        # labels = trainset.targets
-        # for i in range(len(d)):
-        #     for index in d[i].indices:
-        #         print(labels[index], end="")
-        #     print("")
-        # print(D)
-        # print(B)
-
-        # print(G)
-        # print(M)
 
     def train(self):
         for i in range(self.config.global_epoch_num):
@@ -995,14 +1041,20 @@ class GFL:
 
             stds = np.zeros((self.G.shape[1],))
             label_num = len(get_targets_set_as_list(self.d[0].dataset))
+            # group num * label num
             label_list = np.zeros((self.G.shape[1], label_num))
 
             targets = get_targets(self.d[0].dataset)
-            for i, client in enumerate(self.G):
-                for j, to_group in enumerate(client):
-                    if self.G[i][j] == 1:
-                        for index in self.d[i].indices:
-                            label_list[j][targets[index]] += 1
+            for i, group in enumerate(self.all_groups):
+                for client_index in group:
+                    for index in self.d[client_index].indices:
+                        label_list[i][targets[index]] += 1
+
+            # for i, client in enumerate(self.G):
+            #     for j, to_group in enumerate(client):
+            #         if self.G[i][j] == 1:
+            #             for index in self.d[i].indices:
+            #                 label_list[j][targets[index]] += 1
 
             for i, group in enumerate(label_list):
                 total_num = np.sum(group)
@@ -1033,11 +1085,18 @@ class GFL:
             for i, client in enumerate(self.clients):
                     client.train()
 
+        def update_all_gradients() -> None:
+            for group in self.all_groups:
+                for client in group:
+                    self.clients[client].train()
+
+
         self.global_distribution()
         if initial:
             initial_train()
         # losses = calc_loss_by_group()
-        # stds = calc_stds()
+        if self.stds is None:
+            self.stds = calc_stds()
         grad_norms = calc_gradient_by_group()
 
         # rank all groups by quality
@@ -1054,23 +1113,172 @@ class GFL:
                 if self.G[i][j] == 1:
                     group_size_by_client[j] += 1
 
-        B_temp = np.zeros((self.B.shape[0],))
-        self.A = np.zeros(self.M.shape)
-        group_assigned = np.zeros(self.A.shape[0])
-        for (quality, seq) in Q_sorted:
-            for j, to_server in enumerate(self.A[seq]):
-                if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
-                    B_temp[j] += group_size_by_client[seq]
-                    self.A[seq][j] = 1
-                    group_assigned[seq] = 1
-                else:
-                    self.A[seq][j] = 0
+        self.selected_groups_by_group_num = []
+
+        if self.config.selection_mode == GFLConfig.SelectionMode.GRADIENT_RANKING:
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, seq) in Q_sorted:
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.RANDOM:
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            # select groups in random order
+            random.shuffle(Q_sorted)
+            self.selected_groups_by_group_num = []
+            for (quality, seq) in Q_sorted:
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.GRADIENT_RANKING_RT:
+
+            update_all_gradients()
+            grad_norms = calc_gradient_by_group()
+            print("grads for selection", grad_norms)
+
+            # rank all groups by quality
+            # Q = np.exp(1 + losses) - np.log(stds + 1)
+            Q = grad_norms
+            seq = [ i for i in range(Q.shape[0])]
+            Q_sorted = sorted(zip(Q, seq))
+            # from greater to smaller
+            Q_sorted.reverse()
+
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, seq) in Q_sorted:
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.STD:
+            Q = deepcopy(self.stds)
+            seq = [ i for i in range(Q.shape[0])]
+            Q_sorted = sorted(zip(Q, seq))
+
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, seq) in Q_sorted:
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.LOW_STD_GRADIENT_RANKING_RT:
+            update_all_gradients()
+            grad_norms = calc_gradient_by_group()
+            print("grads for selection", grad_norms)
+
+            # rank all groups by quality
+            # Q = np.exp(1 + losses) - np.log(stds + 1)
+            Q = grad_norms
+            stds = deepcopy(self.stds)
+            seqs = [ i for i in range(Q.shape[0])]
+            Q_sorted = np.array(sorted(zip(Q, stds, seqs), reverse=True))
+            index = np.array([ i for i, q in enumerate(Q_sorted) if q[1] < 0.5 ])
+            Q_sorted = Q_sorted[index]
+
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, std, seq) in Q_sorted:
+                seq = int(seq)
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.LOW_STD_GRADIENT_RANKING:
+
+            print("grads for selection", grad_norms)
+            # rank all groups by quality
+            # Q = np.exp(1 + losses) - np.log(stds + 1)
+            Q = grad_norms
+            stds = deepcopy(self.stds)
+            seqs = [ i for i in range(Q.shape[0])]
+            Q_sorted = np.array(sorted(zip(Q, stds, seqs), reverse=True))
+            index = np.array([ i for i, q in enumerate(Q_sorted) if q[1] < 0.5 ])
+            Q_sorted = Q_sorted[index]
+
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, std, seq) in Q_sorted:
+                seq = int(seq)
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+
+
+        print("selected groups", self.selected_groups_by_group_num)
 
         self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
         # print(np.exp(losses + 1)[:10])
+        print("stds", self.stds)
         print("grads", grad_norms)
-
+        # average grad norm of selected groups
+        grad_norm_avg_selected = np.mean(grad_norms[self.selected_groups_by_group_num])
+        print("average grad norm of selected groups: %f" % (grad_norm_avg_selected,))
+        grad_norm_avg_all = np.mean(grad_norms)
+        print("average grad norm of all groups: %f" % (grad_norm_avg_all,))
+        # average grad of iid groups
+        iid_groups = []
+        for i, group in enumerate(self.all_groups):
+            if self.stds[i] == 0:
+                iid_groups.append(i)
+        grad_avg_iid = np.mean(grad_norms[iid_groups])
+        print("average grad norm of iid groups: %f" % (grad_avg_iid,))
+        # average grad of non-iid groups
+        noniid_groups = []
+        for i, group in enumerate(self.all_groups):
+            if self.stds[i] != 0:
+                noniid_groups.append(i)
+        grad_avg_noniid = np.mean(grad_norms[noniid_groups])
+        print("average grad norm of non-iid groups: %f" % (grad_avg_noniid,))
+            
     def initial_selection(self):
         """
         do grouping before calling this funciton
@@ -1138,57 +1346,58 @@ class GFL:
             new_sd = deepcopy(self.model.state_dict())
             client.model.load_state_dict(new_sd)
 
+    def single_group_train(self, group: 'list[int]') -> float:
+        """
+        return loss
+        """
+        def group_train(group: 'list[int]') -> float:
+            group_loss = 0
+            # train all clients in this group
+            for client_index in group:
+                client = self.clients[client_index]
+                group_loss += client.train()
+                    
+            return group_loss
+            
+        def group_aggregation(group: 'list[int]'):
+            # get clients sizes
+            C_size = []
+            for index in group:
+                size = len(self.clients[index].trainset.indices)
+                C_size.append(size)
+            data_num_sum = sum(C_size)
+
+            # get state dicts
+            state_dicts = []
+            for index in group:
+                client = self.clients[index]
+                state_dicts.append(client.model.state_dict())
+
+            # calculate average model
+            state_dict_avg = deepcopy(state_dicts[0]) 
+            for key in state_dict_avg.keys():
+                state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+            
+            for key in state_dict_avg.keys():
+                for i in range(len(state_dicts)):
+                    state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
+            
+            # update all clients in this group
+            selected_clients: list[Client] = [self.clients[i] for i in group]
+            for i, client in enumerate(selected_clients):
+                new_sd = deepcopy(state_dict_avg)
+                client.model.load_state_dict(new_sd)
+
+        for i in range(self.config.group_epoch_num):
+            group_loss = group_train(group)
+            group_aggregation(group)
+
+        return group_loss
+
     def global_train(self) -> float:
         """
         update self.model
         """
-        def single_group_train(group: 'list[int]') -> float:
-            """
-            return loss
-            """
-            def group_train(group: 'list[int]') -> float:
-                group_loss = 0
-                # train all clients in this group
-                for client_index in group:
-                    client = self.clients[client_index]
-                    group_loss += client.train()
-                        
-                return group_loss
-                
-            def group_aggregation(group: 'list[int]'):
-                # get clients sizes
-                C_size = []
-                for index in group:
-                    size = len(self.clients[index].trainset.indices)
-                    C_size.append(size)
-                data_num_sum = sum(C_size)
-
-                # get state dicts
-                state_dicts = []
-                for index in group:
-                    client = self.clients[index]
-                    state_dicts.append(client.model.state_dict())
-
-                # calculate average model
-                state_dict_avg = deepcopy(state_dicts[0]) 
-                for key in state_dict_avg.keys():
-                    state_dict_avg[key] = 0 # state_dict_avg[key] * -1
-                
-                for key in state_dict_avg.keys():
-                    for i in range(len(state_dicts)):
-                        state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
-                
-                # update all clients in this group
-                selected_clients: list[Client] = [self.clients[i] for i in group]
-                for i, client in enumerate(selected_clients):
-                    new_sd = deepcopy(state_dict_avg)
-                    client.model.load_state_dict(new_sd)
-
-            for i in range(self.config.group_epoch_num):
-                group_loss = group_train(group)
-                group_aggregation(group)
-
-            return group_loss
 
         # selected_groups, G_size = self.get_selected_groups()
         # print("Number of data on selected clients: %d" % (sum(G_size),))
@@ -1199,7 +1408,7 @@ class GFL:
         
         epoch_loss: float = 0
         for i, group in enumerate(self.selected_groups):
-            epoch_loss += single_group_train(group)
+            epoch_loss += self.single_group_train(group)
         # average loss
         data_num = sum(self.selected_groups_size)
         epoch_loss /= data_num
@@ -1216,7 +1425,7 @@ class GFL:
         # selected_groups, groups_size = self.get_selected_groups()
         
         # G_size = get_groups_size(clients, G)
-        data_num_sum = sum(self.selected_groups_size)
+        selected_data_num_sum = sum(self.selected_groups_size)
 
         # state dicts of the first client in each group
         state_dicts = []
@@ -1232,7 +1441,7 @@ class GFL:
 
         for key in state_dict_avg.keys():
             for i in range(len(state_dicts)):
-                state_dict_avg[key] += state_dicts[i][key] * (self.selected_groups_size[i] / data_num_sum)
+                state_dict_avg[key] += state_dicts[i][key] * (self.selected_groups_size[i] / selected_data_num_sum)
             # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
         
         self.model.load_state_dict(state_dict_avg)
