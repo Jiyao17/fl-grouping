@@ -129,6 +129,7 @@ class GFLConfig:
         STD = 5
         LOW_STD_GRADIENT_RANKING_RT = 6
         LOW_STD_GRADIENT_RANKING = 7
+        LOW_STD_RANDOM = 8
 
     class GroupingMode(Enum):
         IID = 1
@@ -139,7 +140,7 @@ class GFLConfig:
         IID = 1
         NONIID = 2
         RANDOM = 3
-        IID_AND_NON_IID = 1
+        IID_AND_NON_IID = 4
 
     def __init__(self, task_name="CIFAR", client_num=5000, data_num_per_client=10, r=5, server_num=10, 
         l=60, max_delay=90, max_connection=1000,
@@ -212,7 +213,10 @@ class GFL:
         B: 1*s, bandwidth vector
         """
 
-        if partition_mode == GFLConfig.PartitionMode.NONIID:
+        target_type_num = len(get_targets_set_as_list(trainset))
+        if partition_mode == GFLConfig.PartitionMode.IID:
+            indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, target_type_num, 1)
+        elif partition_mode == GFLConfig.PartitionMode.NONIID:
             indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
         elif partition_mode == GFLConfig.PartitionMode.IID_AND_NON_IID:
             indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, r, proportion)
@@ -1135,7 +1139,7 @@ class GFL:
             self.A = np.zeros(self.M.shape)
             group_assigned = np.zeros(self.A.shape[0])
             # select groups in random order
-            random.shuffle(Q_sorted)
+            np.random.shuffle(Q_sorted)
             self.selected_groups_by_group_num = []
             for (quality, seq) in Q_sorted:
                 for j, to_server in enumerate(self.A[seq]):
@@ -1250,9 +1254,37 @@ class GFL:
                         self.selected_groups_by_group_num.append(seq)
                     else:
                         self.A[seq][j] = 0
+        if self.config.selection_mode == GFLConfig.SelectionMode.LOW_STD_RANDOM:
+            print("grads for selection", grad_norms)
+            # rank all groups by quality
+            # Q = np.exp(1 + losses) - np.log(stds + 1)
+            Q = grad_norms
+            stds = deepcopy(self.stds)
+            seqs = [ i for i in range(Q.shape[0])]
+            Q_sorted = np.array(sorted(zip(Q, stds, seqs), reverse=True))
+            index = np.array([ i for i, q in enumerate(Q_sorted) if q[1] < 0.5 ])
+            Q_sorted = Q_sorted[index]
 
+            # make selection randomly
+            np.random.shuffle(Q_sorted)
 
-        print("selected groups", self.selected_groups_by_group_num)
+            B_temp = np.zeros((self.B.shape[0],))
+            self.A = np.zeros(self.M.shape)
+            group_assigned = np.zeros(self.A.shape[0])
+            self.selected_groups_by_group_num = []
+            for (quality, std, seq) in Q_sorted:
+                seq = int(seq)
+                for j, to_server in enumerate(self.A[seq]):
+                    #  connection ability allows                          and latency allows                  and not assigned
+                    if B_temp[j] + group_size_by_client[seq] <= self.B[j] and self.M[seq][j] <= self.config.l and group_assigned[seq] == 0:
+                        B_temp[j] += group_size_by_client[seq]
+                        self.A[seq][j] = 1
+                        group_assigned[seq] = 1
+                        self.selected_groups_by_group_num.append(seq)
+                    else:
+                        self.A[seq][j] = 0
+
+        print("selected groups", sorted(self.selected_groups_by_group_num))
 
         self.set_selected_groups()
         print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
@@ -1337,7 +1369,7 @@ class GFL:
                     self.A[seq][j] = 0
 
         self.set_selected_groups()
-        print("Number of data on selected clients: %d" % (sum(self.selected_groups_size),))
+        print("Number of selected clients: %d" % (sum(self.selected_groups_by_group_num),))
         # print(np.exp(losses + 1)[:10])
         print("grads:", grad_norms)
 

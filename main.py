@@ -35,22 +35,21 @@ if __name__ == "__main__":
     )
 
     fedavg = GFLConfig(
-        client_num = 100, lr=0.5, lr_interval=50,
+        client_num = 500, lr=0.5, lr_interval=50,
         data_num_per_client=50, local_batch_size = 50,
-        global_epoch_num=100, reselect_interval=1,
+        global_epoch_num=100, reselect_interval=1000,
 
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5,
-        r = 2, partition_mode='iid_and_noniid', iid_proportion=0.5,
-        l = 60, max_delay = 60, max_connection = 1000,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 5000,
         log_interval=1,
 
-
-        grouping_mode='random',
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
+        grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-
-        comment="single server fedavg",
+        comment="full participation",  
 
         result_file_accu="./cifar/fedavg/accu0",
         result_file_loss="./cifar/fedavg/loss0",
@@ -75,18 +74,21 @@ if __name__ == "__main__":
     )
 
     noniid = GFLConfig(
-        client_num = 2500, lr=1, lr_interval=100,
-        data_num_per_client = 20, local_batch_size = 20,
-        global_epoch_num= 300, reselect_interval=3000,
+        client_num = 20, lr=0.5, lr_interval=50,
+        data_num_per_client=1000, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
 
-        server_num = 10,
-        group_epoch_num=1, local_epoch_num=5, r = 2, 
-        l = 60, max_delay = 60, max_connection = 500, 
-        log_interval=10,
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 5, partition_mode=GFLConfig.PartitionMode.NONIID, iid_proportion=0,
+        l = 60, max_delay = 60, max_connection = 10,
+        log_interval=1,
 
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
+        grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-        comment="single server noniid", 
+        comment="single server iid_and_noniid, no grouping, iid selection",
 
         result_file_accu="./cifar/noniid/accu",
         result_file_loss="./cifar/noniid/loss",
@@ -205,7 +207,7 @@ if __name__ == "__main__":
     )
 
     debug = GFLConfig(
-        client_num = 500, lr=0.1, lr_interval=50,
+        client_num = 500, lr=0.5, lr_interval=50,
         data_num_per_client=50, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
@@ -215,7 +217,7 @@ if __name__ == "__main__":
         l = 60, max_delay = 60, max_connection = 100,
         log_interval=1,
 
-        selection_mode=GFLConfig.SelectionMode.GRADIENT_RANKING_RT,
+        selection_mode=GFLConfig.SelectionMode.LOW_STD_RANDOM,
         grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
@@ -227,7 +229,7 @@ if __name__ == "__main__":
     )
 
     test = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=50,
+        client_num = 500, lr=1, lr_interval=50,
         data_num_per_client=50, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
@@ -237,28 +239,28 @@ if __name__ == "__main__":
         l = 60, max_delay = 60, max_connection = 100,
         log_interval=1,
 
-        selection_mode=GFLConfig.SelectionMode.LOW_STD_GRADIENT_RANKING,
+        selection_mode=GFLConfig.SelectionMode.LOW_STD_RANDOM,
         grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
         comment="single server iid_and_noniid no grouping, random selection",
 
-        result_file_accu="./cifar/test/accu",
-        result_file_loss="./cifar/test/loss",
+        result_file_accu="./cifar/test/accu0",
+        result_file_loss="./cifar/test/loss0",
     )
 
     iid = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=50,
-        data_num_per_client=50, local_batch_size = 50,
+        client_num = 20, lr=0.5, lr_interval=50,
+        data_num_per_client=1000, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5,
-        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
-        l = 60, max_delay = 60, max_connection = 100,
+        r = 10, partition_mode=GFLConfig.PartitionMode.IID, iid_proportion=1,
+        l = 60, max_delay = 60, max_connection = 10,
         log_interval=1,
 
-        selection_mode=GFLConfig.SelectionMode.STD,
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
         grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
@@ -267,11 +269,11 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss0",
     )
 
-    config = test
+    config = iid
     exp_num = 1
 
     # config.use_file(1)
-    # gfl = GFL(config)
+    # gfl = GFL(config)d
     # gfl.train()
 
     for i in range(exp_num):
