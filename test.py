@@ -31,21 +31,27 @@ import enum
 
 # print(np.mean(arr[indices]))
 
-Q = [ 13, 17, 7, 11 ]
-stds = [ 1, 0, 1, 0]
-seq = [ i for i in range(len(Q))]
+# Q = [ 13, 17, 7, 11 ]
+# stds = [ 1, 0, 1, 0]
+# seq = [ i for i in range(len(Q))]
 
-Q_sorted = np.array(sorted(zip(Q, stds, seq)))
+# Q_sorted = np.array(sorted(zip(Q, stds, seq)))
 
-index = np.array([ i for i, q in enumerate(Q_sorted) if q[1] == 0 ])
-print(index)
+# index = np.array([ i for i, q in enumerate(Q_sorted) if q[1] == 0 ])
+# print(index)
 
-Q_sorted = Q_sorted[index]
+# Q_sorted = Q_sorted[index]
 
-for (q, std, seq) in Q_sorted:
-    print(type(int(seq)))
-    print(q, std, seq)
+# for (q, std, seq) in Q_sorted:
+#     print(type(int(seq)))
+#     print(q, std, seq)
 
 # print(Q_sorted[index])
 # print(Q_sorted[~index])
+
+a = np.
+b = np.math.pow(10, 10)
+
+ratio = a/b
+print(ratio)
 

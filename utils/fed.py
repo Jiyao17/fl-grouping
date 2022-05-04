@@ -220,6 +220,17 @@ class GFL:
             indexes_list = dataset_split_r_random(trainset, client_num, data_num_per_client, r)
         elif partition_mode == GFLConfig.PartitionMode.IID_AND_NON_IID:
             indexes_list = dataset_split_r_random_with_iid_datasets(trainset, client_num, data_num_per_client, r, proportion)
+        
+        # half diversity
+        # dataset_num = len(indexes_list)
+        # for i in range(int(dataset_num/2)):
+        #     indexes_list[i + int(dataset_num/2)] = deepcopy(indexes_list[i])
+
+        # single diversity
+        # for i in range(1, len(indexes_list)):
+        #     indexes_list[i] = deepcopy(indexes_list[0])
+
+        # random.shuffle(indexes_list)
         d = [ Subset(trainset, indexes) for indexes in indexes_list ]
 
         D = np.random.rand(client_num, server_num) * max_delay
@@ -1014,7 +1025,7 @@ class GFL:
         A: g*s, group assignment matrix
         """
         def calc_loss_by_group()-> np.ndarray:
-            group_loss = np.zeros((self.G.shape[1]))
+            group_loss
 
             self.set_all_groups()
 

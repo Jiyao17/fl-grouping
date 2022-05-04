@@ -1,0 +1,6 @@
+Theme
+LOW_STD_RANDOM should be better than STD (fixed)
+
+tmux mark
+1    longer reselect
+2    smaller learning rate

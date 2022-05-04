@@ -1,4 +1,5 @@
 
+from copy import deepcopy
 import numpy as np
 import torch
 import random
@@ -6,6 +7,9 @@ import random
 from utils.fed import GFL, GFLConfig
 
 if __name__ == "__main__":
+    # for AI report: start from line 318
+
+
     # make results reproducible
     np.random.seed(1)
     random.seed(1)
@@ -207,21 +211,21 @@ if __name__ == "__main__":
     )
 
     debug = GFLConfig(
-        client_num = 500, lr=0.5, lr_interval=50,
-        data_num_per_client=50, local_batch_size = 50,
+        client_num = 20, lr=0.5, lr_interval=50,
+        data_num_per_client=1000, local_batch_size = 50,
         global_epoch_num=100, reselect_interval=1,
 
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5,
-        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
-        l = 60, max_delay = 60, max_connection = 100,
+        r = 10, partition_mode=GFLConfig.PartitionMode.IID, iid_proportion=1,
+        l = 60, max_delay = 60, max_connection = 10,
         log_interval=1,
 
-        selection_mode=GFLConfig.SelectionMode.LOW_STD_RANDOM,
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
         grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-        comment="single server iid_and_noniid no grouping, gradient ranking real time selection",
+        comment="single server iid_and_noniid no grouping, random selection",
 
 
         result_file_accu="./cifar/debug/accu",
@@ -229,9 +233,9 @@ if __name__ == "__main__":
     )
 
     test = GFLConfig(
-        client_num = 500, lr=1, lr_interval=50,
+        client_num = 500, lr=1, lr_interval=500,
         data_num_per_client=50, local_batch_size = 50,
-        global_epoch_num=100, reselect_interval=1,
+        global_epoch_num=100, reselect_interval=1000,
 
         server_num = 1,
         group_epoch_num=1, local_epoch_num=5,
@@ -239,11 +243,11 @@ if __name__ == "__main__":
         l = 60, max_delay = 60, max_connection = 100,
         log_interval=1,
 
-        selection_mode=GFLConfig.SelectionMode.LOW_STD_RANDOM,
+        selection_mode=GFLConfig.SelectionMode.STD,
         grouping_mode=GFLConfig.GroupingMode.IID,
         regroup_size=1, # 1: no regrouping,
         group_size=1, # 1: no grouping,
-        comment="single server iid_and_noniid no grouping, random selection",
+        comment="longer reselect interval",
 
         result_file_accu="./cifar/test/accu0",
         result_file_loss="./cifar/test/loss0",
@@ -269,9 +273,103 @@ if __name__ == "__main__":
         result_file_loss="./cifar/iid/loss0",
     )
 
-    config = iid
-    exp_num = 1
+    selection = GFLConfig(
+        client_num = 500, lr=1, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
 
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 100,
+        log_interval=1,
+
+        selection_mode=GFLConfig.SelectionMode.STD,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=1, # 1: no regrouping,
+        group_size=1, # 1: no grouping,
+        comment="longer reselect interval",
+
+        result_file_accu="./cifar/selection/low_std_rand_accu0",
+        result_file_loss="./cifar/selection/low_std_rand_loss0",
+    )
+
+    selection_multi_interval = GFLConfig(
+        client_num = 500, lr=5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=1,
+
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.IID_AND_NON_IID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 100,
+        log_interval=1,
+
+        selection_mode=GFLConfig.SelectionMode.LOW_STD_RANDOM,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=1, # 1: no regrouping,
+        group_size=1, # 1: no grouping,
+        comment="single server iid_and_noniid no grouping, random selection",
+
+        result_file_accu="./cifar/selection/multi_inter_accu0",
+        result_file_loss="./cifar/selection/multi_inter_loss0",
+    )
+
+    # start settings for AI report
+
+    ai_report_fed_avg = GFLConfig(
+        client_num = 100, lr=0.5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=10000,
+
+        server_num = 1,
+        group_epoch_num=1, local_epoch_num=5,
+        r = 2, partition_mode=GFLConfig.PartitionMode.NONIID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 5000,
+        log_interval=1,
+
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=1, # 1: no regrouping,
+        group_size=1, # 1: no grouping,
+        comment="full participation fed avg for ai report",  
+
+        result_file_accu="./cifar/fedavg/accu0",
+        result_file_loss="./cifar/fedavg/loss0",
+    )
+
+    ai_report_grouping = GFLConfig(
+        client_num = 100, lr=0.5, lr_interval=50,
+        data_num_per_client=50, local_batch_size = 50,
+        global_epoch_num=100, reselect_interval=10000,
+
+        server_num = 1,
+        group_epoch_num=5, local_epoch_num=1,
+        r = 2, partition_mode=GFLConfig.PartitionMode.NONIID, iid_proportion=0.5,
+        l = 60, max_delay = 60, max_connection = 5000,
+        log_interval=1,
+
+        selection_mode=GFLConfig.SelectionMode.RANDOM,
+        grouping_mode=GFLConfig.GroupingMode.IID,
+        regroup_size=10, # 1: no regrouping,
+        group_size=10, # 1: no grouping,
+        comment="full participation fed avg for ai report",  
+
+        result_file_accu="./cifar/grouping/accu0",
+        result_file_loss="./cifar/grouping/loss0",
+    )
+
+    # end settings for AI report
+
+    # set config to the settings you want
+    # config = ai_report_fed_avg
+    config = ai_report_grouping
+
+
+
+
+
+    exp_num = 1
     # config.use_file(1)
     # gfl = GFL(config)d
     # gfl.train()
