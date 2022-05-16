@@ -49,9 +49,12 @@ import enum
 # print(Q_sorted[index])
 # print(Q_sorted[~index])
 
-a = np.
-b = np.math.pow(10, 10)
+samples0 = np.array([10, 10, 0, 0, 0, 0, 0, 0, 0, 0])
+samples1 = np.array([5, 5, 0, 0, 0, 0, 0, 0, 0, 0])
+samples2 = np.array([20, 20, 0, 0, 0, 0, 0, 0, 0, 0])
 
-ratio = a/b
-print(ratio)
+samples = samples2
+std = np.std(samples)
+muta = std / np.average(samples)
 
+print(std, muta)
