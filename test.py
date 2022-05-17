@@ -60,17 +60,19 @@ import enum
 
 from utils.data import DatasetPartitioner, load_dataset_CIFAR
 
-sample_num = 1
+sample_num = 10
 trainset, testset = load_dataset_CIFAR("./data/", "both")
 dp = DatasetPartitioner(trainset, 1000, (10, 50), 0.1, 0)
 dp.draw(20, "./pic/debug.png")
-sigmas = np.std(dp.distributions[:sample_num], axis=1)
-sampled = np.zeros((10,))
-for distribution in dp.distributions[:sample_num]:
-    sampled += distribution
+# sigmas = np.std(dp.distributions[:sample_num], axis=1)
+# sampled = np.zeros((10,))
+# for distribution in dp.distributions[:sample_num]:
+#     sampled += distribution
 print(dp.distributions[:sample_num])
-print(sigmas)
-print(np.std(sampled) / np.average(sampled))
+print(dp.distributions[[0, 2, 4]])
+print(np.sum(dp.distributions[[0, 2, 4]]))
+# print(sigmas)
+# print(np.std(sampled) / np.average(sampled))
 
 # import numpy as np
 
@@ -100,3 +102,5 @@ print(np.std(sampled) / np.average(sampled))
 #     times[i] = t / total
 
 # print(times)
+
+

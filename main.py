@@ -13,7 +13,7 @@ if __name__ == "__main__":
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    config = Config(
+    formal = Config(
         task_name='CIFAR',
         server_num=10, client_num=1000, data_num_range=(10, 50), alpha=0.1,
         sampling_num=100,
@@ -21,7 +21,7 @@ if __name__ == "__main__":
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
         # alpha=0.1: sigma = 
-        grouping_mode=Config.GroupingMode.CV_GREEDY, cv=0.1, min_group_size=10,
+        grouping_mode=Config.GroupingMode.CV_GREEDY, max_cv=0.1, min_group_size=10,
         partition_mode=Config.PartitionMode.IID,
         selection_mode=Config.SelectionMode.GRADIENT_RANKING,
         device="cuda",
@@ -31,8 +31,27 @@ if __name__ == "__main__":
         comment="",
     )
 
-    gfl = GFL(config)
+    debug = Config(
+        task_name='CIFAR',
+        server_num=5, client_num=100, data_num_range=(10, 50), alpha=0.1,
+        sampling_num=50,
+        global_epoch_num=100, group_epoch_num=1, local_epoch_num=5,
+        lr=0.1, lr_interval=100, local_batch_size=10,
+        log_interval=5, 
+        # alpha=0.1: sigma = 
+        grouping_mode=Config.GroupingMode.CV_GREEDY, max_cv=0.1, min_group_size=5,
+        partition_mode=Config.PartitionMode.IID,
+        selection_mode=Config.SelectionMode.GRADIENT_RANKING,
+        device="cuda",
+        data_path="./data/", 
+        result_file_accu="./cifar/grouping/accu", 
+        result_file_loss="./cifar/grouping/loss",
+        comment="",
+    )
 
+    config = formal
+
+    gfl = GFL(config)
     gfl.run()
 
 

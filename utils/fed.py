@@ -45,7 +45,7 @@ class Config:
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
-        grouping_mode=GroupingMode.CV_GREEDY, cv=1, min_group_size=10,
+        grouping_mode=GroupingMode.CV_GREEDY, max_cv=1, min_group_size=10,
         partition_mode=PartitionMode.IID,
         selection_mode=SelectionMode.GRADIENT_RANKING,
         device="cuda", 
@@ -74,7 +74,7 @@ class Config:
         self.selection_mode = selection_mode
         self.partition_mode = partition_mode
         self.grouping_mode = grouping_mode
-        self.max_cv = cv
+        self.max_cv = max_cv
         self.min_group_size = min_group_size
         # results
         self.log_interval = log_interval
@@ -191,7 +191,7 @@ class GFL:
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
         self.subsets_indices = partitioner.get_subsets()
-        # partitioner.draw(20,"./pic/dubug.png")
+        partitioner.draw(20,"./pic/dubug.png")
         self.testloader = DataLoader(self.testset, 1000, drop_last=True)
         self.model, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
 
@@ -203,8 +203,10 @@ class GFL:
             self.servers_clients.append(indices[i*client_per_server:(i+1)*client_per_server])
         # only modified in group() once
         self.groups: 'list[int]'= []
+        self.groups_sizes: 'list[int]' = []
+        self.groups_cvs: 'list[float]' = []
         # assign groups to servers
-        self.servers_groups: 'list[list[int]]'= []
+        self.servers_groups: 'list[list[int]]'= [[] for _ in range(self.config.server_num)]
         # may change over iterations
         self.selected_groups = []
 
@@ -227,17 +229,20 @@ class GFL:
         form groups
         record their sigmas
         """
-        def CV_greedy(server_clients_arg: 'list[int]', server_no, max_cv: float, min_group_size: int) -> 'list[list[int]]':
+        def CV_greedy(server_clients_arg: 'list[int]', server_num, max_cv: float, min_group_size: int) -> 'list[list[int]]':
             """
             stop whichever sigma or group size is reached
             server_clients: list[int]
             return
             groups of this server
             """
-            group_no_start = len(self.groups)
+            group_num_start = len(self.groups)
             server_clients = copy.deepcopy(server_clients_arg)
+            # form groups for each server
             while len(server_clients) > 0:
-                # find the client with min cv
+                # try to form a new group
+
+                # find the client with min cv as the first client in the group
                 cur_min_cv = self.calc_cv([server_clients[0]])
                 new_group: 'list[int]' = [server_clients[0]]
                 for client in server_clients:
@@ -245,11 +250,14 @@ class GFL:
                     if cv < cur_min_cv:
                         cur_min_cv = cv
                         new_group = [client]
+                server_clients.remove(new_group[0])
 
-                while cur_min_cv > max_cv and len(new_group) < min_group_size and len(server_clients) > 0:
+                # try to add more clients to the group
+                while len(server_clients) > 0 and not (cur_min_cv < max_cv and len(new_group) >= min_group_size):
                     new_client = -1
+                    # find the greedily best one
                     for client in server_clients:
-                        new_group = new_group.append(client)
+                        new_group.append(client)
                         new_cv = self.calc_cv(new_group)
                         if new_cv < cur_min_cv:
                             cur_min_cv = new_cv
@@ -257,16 +265,23 @@ class GFL:
                             
                         new_group.pop()
 
-                    server_clients.remove(new_client)
-                    new_group.append(new_client)
+                    # no suitable client found, stop adding clients to the current group
+                    if new_client == -1:
+                        break
+                    # found a suitable client, remove it from the pool, add it to the group
+                    else:
+                        server_clients.remove(new_client)
+                        new_group.append(new_client)
 
+                # not enough clients to form a group
                 if len(new_group) < min_group_size:
                     continue
                 else:
                     self.groups.append(new_group)
+                    self.groups_sizes.append(np.sum(self.distributions[new_group]))
                     self.groups_cvs.append(cur_min_cv)
-                    self.servers_groups[server_no].append(group_no_start)
-                    group_no_start += 1
+                    self.servers_groups[server_num].append(group_num_start)
+                    group_num_start += 1
 
         self.groups = []
         self.groups_cvs = []
@@ -274,6 +289,8 @@ class GFL:
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
                 CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
+
+        
 
 
     def distribute(self, selected_groups: 'list[int]'):
@@ -315,11 +332,9 @@ class GFL:
         pass
 
     def run(self):
+        # print(self.groups)
         for i in range(self.config.global_epoch_num):
             selected_groups = self.sample()
             self.distribute(selected_groups)
             self.train(selected_groups)
             self.aggregate(selected_groups)
-
-
-

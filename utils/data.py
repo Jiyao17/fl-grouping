@@ -96,16 +96,17 @@ class DatasetPartitioner:
             torch.manual_seed(seed)
 
         self.distributions: np.ndarray = None
-        self.stds: np.ndarray = None
+        self.cvs: np.ndarray = None
         self.subsets: list[Dataset] = []
+        self.subsets_sizes: np.ndarray = None
 
 
     def get_distributions(self):
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
         # print("subset_size: ", subsets_sizes[:10])
         # broadcast
-        subsets_sizes = np.reshape(subsets_sizes, (self.subset_num, 1))
-        subsets_sizes = np.tile(subsets_sizes, (1, len(self.alpha)))
+        self.subsets_sizes = np.reshape(subsets_sizes, (self.subset_num, 1))
+        subsets_sizes = np.tile(self.subsets_sizes, (1, len(self.alpha)))
         # get data sample num from dirichlet distrubution
         probs = np.random.dirichlet(self.alpha, self.subset_num)
         # print("probs: ", probs[:10])
@@ -117,13 +118,13 @@ class DatasetPartitioner:
         self.distributions = distributions
         return distributions
     
-    def get_stds(self):
+    def get_cvs(self):
         if self.distributions is None:
             self.get_distributions()
 
         stds = np.std(self.distributions, axis=1)
-        self.stds = copy.deepcopy(stds)
-        return stds
+        self.cvs = stds / np.mean(self.distributions, axis=1)
+        return self.cvs
 
     def get_subsets(self) -> 'list[Subset]':
         if self.distributions is None:
