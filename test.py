@@ -69,8 +69,10 @@ dp.draw(20, "./pic/debug.png")
 # for distribution in dp.distributions[:sample_num]:
 #     sampled += distribution
 print(dp.distributions[:sample_num])
-print(dp.distributions[[0, 2, 4]])
-print(np.sum(dp.distributions[[0, 2, 4]]))
+print(np.sum(dp.distributions[:sample_num], axis=1)) 
+print(np.sum(dp.distributions[:sample_num]))
+
+print(np.sum(dp.distributions[:sample_num], axis=1) / np.sum(dp.distributions[:sample_num]))
 # print(sigmas)
 # print(np.std(sampled) / np.average(sampled))
 

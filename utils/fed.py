@@ -194,6 +194,8 @@ class GFL:
         partitioner.draw(20,"./pic/dubug.png")
         self.testloader = DataLoader(self.testset, 1000, drop_last=True)
         self.model, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
+        self.clients_sizes = np.sum(self.distributions, axis=1)
+        self.clients_weights = self.clients_sizes / np.sum(self.distributions)
 
         # assign clients to servers
         self.servers_clients: 'list[list[int]]' = []
@@ -203,12 +205,16 @@ class GFL:
             self.servers_clients.append(indices[i*client_per_server:(i+1)*client_per_server])
         # only modified in group() once
         self.groups: 'list[int]'= []
-        self.groups_sizes: 'list[int]' = []
-        self.groups_cvs: 'list[float]' = []
+        self.groups_sizes: 'list[int]'= []
+        self.groups_sizes_arr: np.ndarray = None
+        self.groups_weights: 'list[int]'= []
+        self.groups_weights_arr: np.ndarray = None
+        self.groups_cvs: 'list[int]'= []
+        self.groups_cvs_arr: np.ndarray = None
         # assign groups to servers
         self.servers_groups: 'list[list[int]]'= [[] for _ in range(self.config.server_num)]
         # may change over iterations
-        self.selected_groups = []
+        self.selected_groups: 'list[int]'= []
 
         self.group()
 
@@ -290,16 +296,18 @@ class GFL:
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
                 CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
 
-        self.groups_sizes = np.array(self.groups_sizes)
-        self.groups_cvs = np.array(self.groups_cvs)
-        
-
+        self.groups_sizes_arr = np.ndarray(self.groups_sizes)
+        self.groups_weights_arr = self.groups_sizes / np.sum(self.groups_sizes)
+        self.groups_cvs_arr = np.ndarray(self.groups_cvs)
 
     def distribute(self, selected_groups: 'list[int]'):
         """
         distribute model to selected groups
         """
-        pass
+        for group in selected_groups:
+            for clients in self.groups[group]:
+                new_sd = copy.deepcopy(self.model.state_dict())
+                self.clients[clients].model.load_state_dict(new_sd)
 
     def calc_probs(self) -> np.ndarray:
         """
@@ -324,19 +332,89 @@ class GFL:
         
         return self.selected_groups
 
-    def train(self, selected_groups: 'list[int]'):
-        pass
+    def group_train(self, group: int):
+        """
+        return loss
+        """
+        def group_train_all_devices(group: int) -> float:
+            group_loss = 0
+            # train all clients in this group
+            for client_index in group:
+                client = self.clients[client_index]
+                group_loss += client.train()
+                    
+            return group_loss
+            
+        def group_aggregation(group: int):
+            # get clients sizes
+            C_size = []
+            for index in group:
+                size = len(self.clients[index].trainset.indices)
+                C_size.append(size)
+            data_num_sum = sum(C_size)
+
+            # get state dicts
+            state_dicts = []
+            for index in group:
+                client = self.clients[index]
+                state_dicts.append(client.model.state_dict())
+
+            # calculate average model
+            state_dict_avg = copy.deepcopy(state_dicts[0]) 
+            for key in state_dict_avg.keys():
+                state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+            
+            for key in state_dict_avg.keys():
+                for i in range(len(state_dicts)):
+                    state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
+            
+            # update all clients in this group
+            selected_clients: list[Client] = [self.clients[i] for i in group]
+            for i, client in enumerate(selected_clients):
+                new_sd = copy.deepcopy(state_dict_avg)
+                client.model.load_state_dict(new_sd)
+
+        for i in range(self.config.group_epoch_num):
+            group_train_all_devices(group)
+            group_aggregation(group)
+
+    def global_train(self, selected_groups: 'list[int]'):
+        for i, group in enumerate(self.selected_groups):
+            self.group_train(group)
+
 
     def aggregate(self, selected_groups: 'list[int]'):
         """
+        under development
         aggregate model from selected groups
         """
-        pass
+        selected_groups_sizes = self.groups_sizes[selected_groups]
+        selected_groups_data_sum = np.sum(selected_groups_sizes)
+
+        # state dicts of the first client in each group
+        state_dicts = []
+        for i, group in enumerate(self.selected_groups):
+            client = self.clients[group[0]]
+            model = client.model.to(client.device)
+            state_dicts.append(model.state_dict())
+
+        # calculate average model
+        state_dict_avg = copy.deepcopy(state_dicts[0]) 
+        for key in state_dict_avg.keys():
+            state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+
+        for key in state_dict_avg.keys():
+            for i in range(len(state_dicts)):
+                state_dict_avg[key] += state_dicts[i][key] * (self.groups_sizes[i] / selected_groups_data_sum)
+            # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
+        
+        self.model.load_state_dict(state_dict_avg)
+
 
     def run(self):
         # print(self.groups)
         for i in range(self.config.global_epoch_num):
             selected_groups = self.sample()
             self.distribute(selected_groups)
-            self.train(selected_groups)
+            self.global_train(selected_groups)
             self.aggregate(selected_groups)
