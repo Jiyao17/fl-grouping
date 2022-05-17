@@ -16,7 +16,7 @@ if __name__ == "__main__":
     formal = Config(
         task_name='CIFAR',
         server_num=10, client_num=1000, data_num_range=(10, 50), alpha=0.1,
-        sampling_num=100,
+        sampling_frac=0.2,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     debug = Config(
         task_name='CIFAR',
         server_num=5, client_num=100, data_num_range=(10, 50), alpha=0.1,
-        sampling_num=50,
+        sampling_frac=0.2,
         global_epoch_num=100, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 

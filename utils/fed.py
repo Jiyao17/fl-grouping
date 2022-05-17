@@ -41,7 +41,7 @@ class Config:
 
     def __init__(self, task_name="CIFAR",
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
-        sampling_num=100,
+        sampling_frac=0.2,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
@@ -61,7 +61,7 @@ class Config:
         self.client_num = client_num
         self.data_num_range = data_num_range
         self.alpha = alpha
-        self.sampling_num = sampling_num
+        self.sampling_frac = sampling_frac
         self.data_path = data_path
         self.global_epoch_num = global_epoch_num
         self.group_epoch_num = group_epoch_num
@@ -290,6 +290,8 @@ class GFL:
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
                 CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
 
+        self.groups_sizes = np.array(self.groups_sizes)
+        self.groups_cvs = np.array(self.groups_cvs)
         
 
 
@@ -312,14 +314,14 @@ class GFL:
         select groups for the current iteration
         list of group numbers (in self.groups)
         """
-        probs = np.zeros((len(self.groups),), dtype=np.float)
-        for i, group in enumerate(self.groups):
-            probs[i] = 1.0 / self.calc_cv(group)
+        probs = 1.0 / self.groups_cvs
         sum_rcv = np.sum(probs)
         probs = probs / sum_rcv
 
         indices = range(len(self.groups))
-        self.selected_groups= np.random.choice(indices, self.config.sampling_num, p=probs)
+        sampling_num = int(self.config.sampling_frac * len(self.groups))
+        self.selected_groups = np.random.choice(indices, sampling_num, p=probs, replace=False)
+        
         return self.selected_groups
 
     def train(self, selected_groups: 'list[int]'):
