@@ -1,5 +1,4 @@
 
-from tempfile import _TemporaryFileWrapper
 import numpy as np
 
 # from utils.data import dataset_split_r_random_with_iid_datasets, load_dataset, subset_distribution
@@ -49,12 +48,55 @@ import enum
 # print(Q_sorted[index])
 # print(Q_sorted[~index])
 
-samples0 = np.array([10, 10, 0, 0, 0, 0, 0, 0, 0, 0])
-samples1 = np.array([5, 5, 0, 0, 0, 0, 0, 0, 0, 0])
-samples2 = np.array([20, 20, 0, 0, 0, 0, 0, 0, 0, 0])
+# samples0 = np.array([10, 10, 0, 0, 0, 0, 0, 0, 0, 0])
+# samples1 = np.array([5, 5, 0, 0, 0, 0, 0, 0, 0, 0])
+# samples2 = np.array([20, 20, 0, 0, 0, 0, 0, 0, 0, 0])
 
-samples = samples2
-std = np.std(samples)
-muta = std / np.average(samples)
+# samples = samples2
+# std = np.std(samples)
+# muta = std / np.average(samples)
 
-print(std, muta)
+# print(std, muta)
+
+from utils.data import DatasetPartitioner, load_dataset_CIFAR
+
+sample_num = 1
+trainset, testset = load_dataset_CIFAR("./data/", "both")
+dp = DatasetPartitioner(trainset, 1000, (10, 50), 0.1, 0)
+dp.draw(20, "./pic/debug.png")
+sigmas = np.std(dp.distributions[:sample_num], axis=1)
+sampled = np.zeros((10,))
+for distribution in dp.distributions[:sample_num]:
+    sampled += distribution
+print(dp.distributions[:sample_num])
+print(sigmas)
+print(np.std(sampled) / np.average(sampled))
+
+# import numpy as np
+
+# def sample(population, probs, k) -> 'list[int]':
+#     """
+#     select groups for the current iteration
+#     list of group numbers (in self.groups)
+#     """
+    
+#     selected_groups: 'list[int]' = np.random.choice(population, replace=False, size=k, p=probs)
+#     return selected_groups
+
+# population = [0, 1, 2, 3, 4]
+# probs = [0.2, 0.05, 0.3, 0.1, 0.35]
+
+# times = [0, 0, 0, 0, 0]
+# for i in range(5):
+#     selected = sample(population, probs, 3)
+#     # print(selected)
+#     for s in selected:
+#         times[s] += 1
+
+# print(times)
+
+# total = sum(times)
+# for i, t in enumerate(times):
+#     times[i] = t / total
+
+# print(times)

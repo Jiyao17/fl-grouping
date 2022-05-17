@@ -1,14 +1,18 @@
 
+import torch
 import torchvision
 import torchvision.transforms as tvtf
 from torch.utils.data.dataset import Dataset, Subset
 
+import matplotlib.pyplot as plt
+
+import copy
 import numpy as np
 
 import random
 import math
 
-def load_dataset_CIFAR(data_path: str, dataset_type: str="both"):
+def load_dataset_CIFAR(data_path: str, dataset_type: str):
     # enhance
     # Use the torch.transforms, a package on PIL Image.
     transform_enhanc_func = tvtf.Compose([
@@ -36,16 +40,10 @@ def load_dataset_CIFAR(data_path: str, dataset_type: str="both"):
 
     return (trainset, testset)
 
-def load_dataset(dataset_name: str, data_path: str, dataset_type: str="both"):
+def load_dataset(dataset_name: str, data_path: str="~/projects/fl-grouping/data/", dataset_type: str="both"):
     if dataset_name == 'CIFAR':
         return load_dataset_CIFAR(data_path, dataset_type)
 
-def get_targets(dataset: Dataset) -> list:
-    targets = dataset.targets
-    if type(targets) is not list:
-        targets = targets.tolist()
-    
-    return targets
 
 def get_targets_set_as_list(dataset: Dataset) -> list:
     targets = dataset.targets
@@ -60,7 +58,7 @@ def get_targets_set_as_list(dataset: Dataset) -> list:
 def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
     """
     return value:
-    list[i] = list[int] = all indices for category i
+    (return list)[i]: list[int] = all indices for category i
     """
     targets = dataset.targets
     if type(dataset.targets) is not list:
@@ -81,133 +79,101 @@ def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
     # subsets = [Subset(dataset, indices) for indices in indices_by_lable]
     return indices_by_lable
 
-def dataset_split_r_random_with_iid_datasets(
-    dataset: Dataset, subset_num: int, subset_size: int,
-    r: int, iid_proportion: float=0.5) \
-     -> 'list[list[int]]':
-    """
-    similar to dataset_split_r_random
-    but partial datasets are iid
-    thus some datasets are noniid with degree r,
-    some are iid (occupy iid_propotion of total datasets)
-    """
+
+class DatasetPartitioner:
+
+    def __init__(self, dataset: Dataset, subset_num: int=1000, data_num_range: 'tuple[int]'=(10, 50), alpha: float=0.1, seed=0):
+        self.dataset = dataset
+        self.subset_num = subset_num
+        # range = (min, max)
+        self.data_num_range = data_num_range
+        self.label_type_num = len(get_targets_set_as_list(dataset))
+        self.alpha = [alpha] * self.label_type_num
+
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+
+        self.distributions: np.ndarray = None
+        self.stds: np.ndarray = None
+        self.subsets: list[Dataset] = []
+
+
+    def get_distributions(self):
+        subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
+        # print("subset_size: ", subsets_sizes[:10])
+        # broadcast
+        subsets_sizes = np.reshape(subsets_sizes, (self.subset_num, 1))
+        subsets_sizes = np.tile(subsets_sizes, (1, len(self.alpha)))
+        # get data sample num from dirichlet distrubution
+        probs = np.random.dirichlet(self.alpha, self.subset_num)
+        # print("probs: ", probs[:10])
+        # broadcast
+        distributions: np.ndarray = np.multiply(subsets_sizes, probs)
+        distributions.round()
+        distributions = distributions.astype(np.int)
+
+        self.distributions = distributions
+        return distributions
     
-    if subset_size * subset_num > len(dataset):
-        raise "Cannot partition dataset as required."
-    
-    iid_num = int(subset_num * iid_proportion)
-    noniid_num = subset_num - iid_num
+    def get_stds(self):
+        if self.distributions is None:
+            self.get_distributions()
 
-    # each dataset contains r types of data
-    categorized_index_list = dataset_categorize(dataset)
-    shard_size = math.gcd(int(subset_size / len(categorized_index_list)), int(subset_size/r))
-    shards_lists = [ [] for i in range(len(categorized_index_list)) ]
-    for i, one_category in enumerate(categorized_index_list):
-        shard_counter = 0
-        while (shard_counter + 1) * shard_size <= len(one_category):
-            shards_lists[i].append(one_category[shard_counter*shard_size: (shard_counter+1)*shard_size])
-            shard_counter += 1
-        # shards_list.append(one_category[shard_counter*shard_size:])
+        stds = np.std(self.distributions, axis=1)
+        self.stds = copy.deepcopy(stds)
+        return stds
 
-    # iid datasets
-    iid_datasets = []
-    for i in range(iid_num):
-        iid_set = []
-        shard_index = 0
-        # select one shard of each kind of data
-        while len(iid_set) < subset_size:
-            # bug: if len(shards_lists[shard_index]) == 0, then shard_index += 1
-            shard = shards_lists[shard_index].pop()
-            iid_set += shard
-            shard_index = (shard_index + 1) % len(shards_lists)
-        iid_datasets.append(iid_set)
-    
-    # noniid datasets
-    noniid_datasets = []
-    for i in range(noniid_num):
-        noniid_set = []
-        total_shard_num = subset_size/shard_size
-        one_type_shard_num = int(total_shard_num / r)
+    def get_subsets(self) -> 'list[Subset]':
+        if self.distributions is None:
+            self.get_distributions()
 
-        counter = 0
-        # select r knids of data
-        for j in range(r):
-            counter = 0
-            target_type = random.randint(0, len(shards_lists)-1)
-            # no more shard of this type
-            while len(shards_lists[target_type]) < one_type_shard_num:
-                counter += 1
-                target_type = (target_type + 1) % len(shards_lists)
-                if(counter > 10):
-                    break
-            # select shards of this type
-            for k in range(one_type_shard_num):
-                shard = shards_lists[target_type].pop()
-                noniid_set += shard
-        if counter > 10:
-            break
-        else:
-            noniid_datasets.append(noniid_set)
-    
-    # combine iid and noniid datasets
-    indices_list = iid_datasets + noniid_datasets
-    return indices_list
+        categorized_indexes = dataset_categorize(self.dataset)
+        self.subsets = []
+        
+        for distribution in self.distributions:
+            subset_indexes = []
+            for i, num in enumerate(distribution):
+                subset_indexes.extend(categorized_indexes[i][:num])
+                categorized_indexes[i] = categorized_indexes[i][num:]
+            self.subsets.append(Subset(self.dataset, subset_indexes))
 
-def dataset_split_r_random(dataset: Dataset, subset_num, subset_size, r: int) \
-     -> 'list[list[int]]':
-    """
-    within a dataset, r types may not be distinct
+        return self.subsets
 
-    revised and tested
-    """
+    def check_distribution(self, num: int) -> np.ndarray:
+        subsets = self.subsets[:num]
+        distributions = np.zeros((num, self.label_type_num), dtype=np.int)
+        targets = self.dataset.targets
 
-    if subset_size * subset_num > len(dataset):
-        raise "Cannot partition dataset as required."
+        for i, subset in enumerate(subsets):
+            for j, index in enumerate(subset.indices):
+                category = targets[index]
+                distributions[i][category] += 1
 
-    # each dataset contains r types of data
-    categorized_index_list = dataset_categorize(dataset)
-    shard_size = int(subset_size / r)
+        return distributions
 
-    shards_list = []
-    for one_category in categorized_index_list:
-        shard_counter = 0
-        while (shard_counter + 1) * shard_size <= len(one_category):
-            shards_list.append(one_category[shard_counter*shard_size: (shard_counter+1)*shard_size])
-            shard_counter += 1
-        # shards_list.append(one_category[shard_counter*shard_size:])
+    def draw(self, num: int=None, filename: str="./pic/distribution.png"):
+        if self.distributions is None:
+            self.get_distributions()
+        if num is None:
+            num = len(self.distributions)
 
+        xaxis = np.arange(num)
+        base = np.zeros(shape=(num,))
+        for i in range(self.distributions.shape[1]):
+            plt.bar(xaxis, self.distributions[:,i][0:num], bottom=base)
+            base += self.distributions[:,i][0:num]
 
-    random.shuffle(shards_list)
+        plt.rc('font', size=16)
+        plt.subplots_adjust(0.15, 0.15, 0.95, 0.95)
 
-    indices_list = []
-    for i in range(subset_num):
-        indices = []
-        for j in range(r):
-            indices += shards_list[i*r + j]
-        indices_list.append(indices)
-    
-    return indices_list
+        plt.xlabel('Clients', fontsize=20)
+        plt.ylabel('Distribution', fontsize=20)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        # plt.grid(True)
+        plt.legend()
 
-def subset_distribution(subset: Subset) -> np.ndarray:
-        lable_list = get_targets_set_as_list(subset.dataset)
-        labels = np.zeros(shape=(len(lable_list),), dtype=np.int32,)
-        indices = subset.indices
-        for index in indices:
-            (image, label) = subset.dataset[index]
-            labels[label] += 1
-
-        return labels
-
-def partition_distribution(d: 'list[Subset]') -> 'list[np.ndarray]':
-    """
-    return a numpy array of shape (len(d), len(d[0].targets))
-    """
-    lable_list = get_targets_set_as_list(d[0].dataset)
-    labels_on_clients = [ np.zeros(shape=(len(lable_list),), dtype=np.int32,) for i in range(len(d)) ]
-    for i, subset in enumerate(d):
-        indices = subset.indices
-        for index in indices:
-            (image, label) = subset.dataset[index]
-            labels_on_clients[i][label] += 1
-
-    return labels_on_clients
+        # plt.savefig('no_selection.pdf')
+        plt.savefig(filename)
