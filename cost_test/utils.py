@@ -4,8 +4,42 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+import torchvision
+import torchvision.transforms as tvtf
+
+
+
+
 # Code for CIFAR ResNet is modified from https://github.com/itchencheng/pytorch-residual-networks
 
+
+def load_dataset_CIFAR(data_path: str, dataset_type: str='both'):
+    # enhance
+    # Use the torch.transforms, a package on PIL Image.
+    transform_enhanc_func = tvtf.Compose([
+        tvtf.RandomHorizontalFlip(p=0.5),
+        tvtf.RandomCrop(32, padding=4, padding_mode='edge'),
+        tvtf.ToTensor(),
+        tvtf.Lambda(lambda x: x.mul(255)),
+        tvtf.Normalize([125., 123., 114.], [1., 1., 1.])
+        ])
+
+    # transform
+    transform_func = tvtf.Compose([
+        tvtf.ToTensor(),
+        tvtf.Lambda(lambda x: x.mul(255)),
+        tvtf.Normalize([125., 123., 114.], [1., 1., 1.])
+        ])
+
+    trainset, testset = None, None
+    if dataset_type != "test":
+        trainset = torchvision.datasets.CIFAR10(root=data_path, train=True,
+            download=True, transform=transform_enhanc_func)
+    if dataset_type != "train":
+        testset = torchvision.datasets.CIFAR10(root=data_path, train=False,
+            download=True, transform=transform_func)
+
+    return (trainset, testset)
 
 
 class ResBlock(nn.Module):

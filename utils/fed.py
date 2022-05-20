@@ -11,46 +11,44 @@ import numpy as np
 from enum import Enum
 import copy
 
-from utils.data import load_dataset, DatasetPartitioner
-from utils.model import CIFARResNet
+from utils.data import TaskName, load_dataset, DatasetPartitioner, quick_draw
+from utils.model import CIFARResNet, test_model
 
 class Config:
-    class Task(Enum):
-        CIFAR = 1
 
     class SelectionMode(Enum):
-        GRADIENT_RANKING = 1
-        GRADIENT_PROB = 2
-        RANDOM = 3
-        GRADIENT_RANKING_RT = 4
-        STD = 5
-        LOW_STD_GRADIENT_RANKING_RT = 6
-        LOW_STD_GRADIENT_RANKING = 7
-        LOW_STD_RANDOM = 8
+        # prob based, smaller than random
+        PROB_CV = 1
+
+        RANDOM = 10
+        # ranking based, greater than random
 
     class GroupingMode(Enum):
-        CV_GREEDY = 1
-        NONIID = 2
-        RANDOM = 3
+        NONE = 1
+        RANDOM = 2
+        CV_GREEDY = 3
+        NONIID = 4
+
     
-    class PartitionMode(Enum):
-        IID = 1
-        DIRICHLET = 2
-        RANDOM = 3
+    # class PartitionMode(Enum):
+    #     IID = 1
+    #     DIRICHLET = 2
+    #     RANDOM = 3
         # IID_AND_NON_IID = 4
 
-    def __init__(self, task_name="CIFAR",
+    def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
         sampling_frac=0.2,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
-        grouping_mode=GroupingMode.CV_GREEDY, max_cv=1, min_group_size=10,
-        partition_mode=PartitionMode.IID,
-        selection_mode=SelectionMode.GRADIENT_RANKING,
+        grouping_mode=GroupingMode.CV_GREEDY, max_group_cv=1, min_group_size=10,
+        # partition_mode=PartitionMode.IID,
+        selection_mode=SelectionMode.RANDOM,
         device="cuda", 
         result_file_accu="./cifar/grouping/accu", 
         result_file_loss="./cifar/grouping/loss",
+        result_file_pic="./cifar/grouping/pic.png",
         comment="",
         data_path="../data/", 
         ) -> None:
@@ -72,18 +70,19 @@ class Config:
         self.device = device
 
         self.selection_mode = selection_mode
-        self.partition_mode = partition_mode
+        # self.partition_mode = partition_mode
         self.grouping_mode = grouping_mode
-        self.max_cv = max_cv
+        self.max_cv = max_group_cv
         self.min_group_size = min_group_size
         # results
         self.log_interval = log_interval
         self.result_file_accu = result_file_accu
         self.result_file_loss = result_file_loss
+        self.result_file_pic = result_file_pic
         
         self.comment = comment
     
-    def use_file(self, num: int):
+    def change_output_file(self, num: int):
         self.result_file_accu = self.result_file_accu[0:-1] + str(num)
         self.result_file_loss = self.result_file_loss[0:-1] + str(num)
 
@@ -129,6 +128,7 @@ class Client:
 
         self.model = model
         self.trainset = trainset
+        self.training_cost = self.calc_training_cost(len(self.trainset.indices))
         self.lr = lr
         self.local_epoch_num = local_epoch_num
         self.device = device
@@ -147,7 +147,7 @@ class Client:
         self.model.train()
 
         # reset loss and average gradient
-        self.train_loss = 0
+        self.train_loss: float = 0
         for tensor in self.grad:
             tensor.zero_()
 
@@ -164,35 +164,38 @@ class Client:
                 for i, param in enumerate(self.model.parameters()):
                     self.grad[i] += param.grad.detach().data
         
-        for i, param in enumerate(self.model.parameters()):
-            self.grad[i] /= self.local_epoch_num * self.batch_size
-        self.train_loss /= self.local_epoch_num * self.batch_size
+        # for i, param in enumerate(self.model.parameters()):
+        #     self.grad[i] /= self.local_epoch_num * len(self.trainset.indices)
+        # self.train_loss /= self.local_epoch_num * len(self.trainset.indices)
         return self.train_loss, self.grad
 
     def set_lr(self, new_lr):
         self.lr = new_lr
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
+    def calc_training_cost(self, dataset_len: int) -> float:
+        training_cost = 0.00495469 * dataset_len + 0.01023199
+        return training_cost
 
 class GFL:
     
     def __init__(self, config: Config) -> None:
         self.config = copy.deepcopy(config)
 
-        # self.faccu = open(self.config.result_file_accu, "a")
-        # self.floss = open(self.config.result_file_loss, "a")
-        # self.faccu.write("\nconfig:" + str(vars(self.config)) + "\n")
-        # self.floss.write("\nconfig:" + str(vars(self.config)) + "\n")
-        # self.faccu.flush()
-        # self.floss.flush()
+        self.faccu = open(self.config.result_file_accu, "a")
+        self.floss = open(self.config.result_file_loss, "a")
+        self.faccu.write("\nconfig:" + str(vars(self.config)) + "\n")
+        self.floss.write("\nconfig:" + str(vars(self.config)) + "\n")
+        self.faccu.flush()
+        self.floss.flush()
 
         self.trainset, self.testset = load_dataset(self.config.task_name)
+
         partitioner = DatasetPartitioner(self.trainset, self.config.client_num, self.config.data_num_range, self.config.alpha)
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
         self.subsets_indices = partitioner.get_subsets()
         partitioner.draw(20,"./pic/dubug.png")
-        self.testloader = DataLoader(self.testset, 1000, drop_last=True)
         self.model, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
         self.clients_sizes = np.sum(self.distributions, axis=1)
         self.clients_weights = self.clients_sizes / np.sum(self.distributions)
@@ -211,14 +214,17 @@ class GFL:
         self.groups_weights_arr: np.ndarray = None
         self.groups_cvs: 'list[int]'= []
         self.groups_cvs_arr: np.ndarray = None
+        # self.probs: 'list[float]'= []
+        self.probs_arr: np.ndarray = None
+        self.groups_costs: np.ndarray = None
         # assign groups to servers
         self.servers_groups: 'list[list[int]]'= [[] for _ in range(self.config.server_num)]
         # may change over iterations
-        self.selected_groups: 'list[int]'= []
+        self.selected_groups: np.ndarray = None
 
         self.group()
 
-    def calc_cv(self, subset_indices: 'list[int]') -> float:
+    def __calc_group_cv(self, subset_indices: 'list[int]') -> float:
         """
         optimizable
         return 
@@ -235,7 +241,7 @@ class GFL:
         form groups
         record their sigmas
         """
-        def CV_greedy(server_clients_arg: 'list[int]', server_num, max_cv: float, min_group_size: int) -> 'list[list[int]]':
+        def __CV_greedy(server_clients_arg: 'list[int]', server_num, max_cv: float, min_group_size: int) -> 'list[list[int]]':
             """
             stop whichever sigma or group size is reached
             server_clients: list[int]
@@ -249,10 +255,10 @@ class GFL:
                 # try to form a new group
 
                 # find the client with min cv as the first client in the group
-                cur_min_cv = self.calc_cv([server_clients[0]])
+                cur_min_cv = self.__calc_group_cv([server_clients[0]])
                 new_group: 'list[int]' = [server_clients[0]]
                 for client in server_clients:
-                    cv = self.calc_cv([client])
+                    cv = self.__calc_group_cv([client])
                     if cv < cur_min_cv:
                         cur_min_cv = cv
                         new_group = [client]
@@ -264,7 +270,7 @@ class GFL:
                     # find the greedily best one
                     for client in server_clients:
                         new_group.append(client)
-                        new_cv = self.calc_cv(new_group)
+                        new_cv = self.__calc_group_cv(new_group)
                         if new_cv < cur_min_cv:
                             cur_min_cv = new_cv
                             new_client = client
@@ -289,132 +295,229 @@ class GFL:
                     self.servers_groups[server_num].append(group_num_start)
                     group_num_start += 1
 
+        def __rand(server_clients_arg: 'list[int]', server_no, min_group_size: int) -> 'list[list[int]]':
+            """
+            stop when group size is reached
+            server_clients: list[int]
+            return
+            groups of this server
+            """
+            group_num_start = len(self.groups)
+            server_clients = copy.deepcopy(server_clients_arg)
+            # form groups for each server
+            while len(server_clients) > 0:
+                # try to form a new group
+
+                new_group: 'list[int]' = []
+                # try to add more clients to the group
+                while len(server_clients) > 0 and len(new_group) < min_group_size:
+                    new_client = np.random.choice(server_clients,size=1)[0]
+                    # find the greedily best one
+                    new_group.append(new_client)
+                    server_clients.remove(new_client)
+
+                # not enough clients to form a group
+                if len(new_group) < min_group_size:
+                    continue
+                else:
+                    self.groups.append(new_group)
+                    self.groups_sizes.append(np.sum(self.distributions[new_group]))
+                    group_cv = self.__calc_group_cv(new_group)
+                    self.groups_cvs.append(group_cv)
+                    self.servers_groups[server_no].append(group_num_start)
+                    group_num_start += 1
+        
+        def __calc_group_cost(groups: 'list[list[int]]') -> np.ndarray:
+            costs = np.zeros((len(groups),))
+            for i, group in enumerate(groups):
+                training_cost = 0
+                for client_index in group:
+                    # [0.00495469 0.01023199]
+                    training_cost += 0.00495469 * self.clients_sizes[client_index] + 0.01023199
+
+                group_size = len(group)
+                # [ 0.00071367 -0.00055989  0.00091309]
+                group_overhead = 0.00071367 * group_size**2 - 0.00055989 * group_size + 0.00091309
+
+                costs[i] = training_cost * self.config.local_epoch_num + group_overhead
+
+
+        
         self.groups = []
         self.groups_cvs = []
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
-                CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
+                __CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
+            elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
+                __rand(server_clients, i, self.config.min_group_size)
+            elif self.config.grouping_mode == Config.GroupingMode.NONE:
+                self.groups = [ [i] for i in range(len(self.clients))]
+                self.groups_sizes = copy.deepcopy(self.clients_sizes)
+                self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
+                self.servers_groups = copy.deepcopy(self.servers_clients)
 
-        self.groups_sizes_arr = np.ndarray(self.groups_sizes)
+
+        self.groups_sizes_arr = np.array(self.groups_sizes)
         self.groups_weights_arr = self.groups_sizes / np.sum(self.groups_sizes)
-        self.groups_cvs_arr = np.ndarray(self.groups_cvs)
+        self.groups_cvs_arr = np.array(self.groups_cvs)
 
-    def distribute(self, selected_groups: 'list[int]'):
+    def global_distribute(self, selected_groups: 'list[int]'):
         """
         distribute model to selected groups
         """
+        # distribute
         for group in selected_groups:
             for clients in self.groups[group]:
                 new_sd = copy.deepcopy(self.model.state_dict())
                 self.clients[clients].model.load_state_dict(new_sd)
 
-    def calc_probs(self) -> np.ndarray:
+    def __calc_probs(self) -> np.ndarray:
         """
+        for probability based selection
         calculate the probability of each group
         """
-        probs = np.full((self.config.client_num, ), 1.0/len(self.groups), dtype=np.float)
-
+        probs: np.ndarray = None
+        if self.config.selection_mode == Config.SelectionMode.RANDOM:
+            probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
+        elif self.config.selection_mode == Config.SelectionMode.PROB_CV:
+            probs = 1.0 / self.groups_cvs_arr
+            sum_rcv = np.sum(probs)
+            probs = probs / sum_rcv
+        
+        self.probs_arr = probs
         return probs
 
-    def sample(self) -> 'list[int]':
+    def sample(self) -> np.ndarray:
         """
+        set self.selected_groups
         select groups for the current iteration
         list of group numbers (in self.groups)
         """
-        probs = 1.0 / self.groups_cvs
-        sum_rcv = np.sum(probs)
-        probs = probs / sum_rcv
+        self.selected_groups: np.ndarray = None
 
-        indices = range(len(self.groups))
-        sampling_num = int(self.config.sampling_frac * len(self.groups))
-        self.selected_groups = np.random.choice(indices, sampling_num, p=probs, replace=False)
-        
+        if self.config.selection_mode.value <= Config.SelectionMode.RANDOM.value:
+            probs = self.__calc_probs()
+
+            indices = range(len(self.groups))
+            sampling_num = int(self.config.sampling_frac * len(self.groups))
+            self.selected_groups = np.random.choice(indices, sampling_num, p=probs, replace=False)
+        else:
+            pass
+
         return self.selected_groups
 
     def group_train(self, group: int):
         """
         return loss
         """
-        def group_train_all_devices(group: int) -> float:
+        def group_train_all_devices(group_index: int) -> float:
             group_loss = 0
             # train all clients in this group
-            for client_index in group:
+            for client_index in self.groups[group_index]:
                 client = self.clients[client_index]
-                group_loss += client.train()
+                group_loss += client.train()[0]
                     
             return group_loss
             
-        def group_aggregation(group: int):
+        def group_aggregate_distribute(group_index: int):
             # get clients sizes
-            C_size = []
-            for index in group:
-                size = len(self.clients[index].trainset.indices)
-                C_size.append(size)
-            data_num_sum = sum(C_size)
+            # C_size = []
+            # for index in self.groups[group]:
+            #     size = len(self.clients[index].trainset.indices)
+            #     C_size.append(size)
+            # data_num_sum = sum(C_size)
 
-            # get state dicts
-            state_dicts = []
-            for index in group:
-                client = self.clients[index]
-                state_dicts.append(client.model.state_dict())
+            # init state dict
+            client0 = self.clients[self.groups[group_index][0]]
+            state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
+            for key in state_dict_avg.keys():
+                state_dict_avg[key] = 0.0
 
-            # calculate average model
-            state_dict_avg = copy.deepcopy(state_dicts[0]) 
-            for key in state_dict_avg.keys():
-                state_dict_avg[key] = 0 # state_dict_avg[key] * -1
-            
-            for key in state_dict_avg.keys():
-                for i in range(len(state_dicts)):
-                    state_dict_avg[key] += state_dicts[i][key] * (C_size[i] / data_num_sum)
-            
+            # get average state dict
+            for client_index in self.groups[group_index]:
+                state_dict = self.clients[client_index].model.state_dict()
+                weight = self.clients_sizes[client_index] / self.groups_sizes[group_index]
+                for key in state_dict_avg.keys():
+                    state_dict_avg[key] += state_dict[key] * weight
+
             # update all clients in this group
-            selected_clients: list[Client] = [self.clients[i] for i in group]
-            for i, client in enumerate(selected_clients):
+            for client_index in self.groups[group_index]:
                 new_sd = copy.deepcopy(state_dict_avg)
-                client.model.load_state_dict(new_sd)
+                self.clients[client_index].model.load_state_dict(new_sd)
 
         for i in range(self.config.group_epoch_num):
             group_train_all_devices(group)
-            group_aggregation(group)
+            group_aggregate_distribute(group)
 
     def global_train(self, selected_groups: 'list[int]'):
-        for i, group in enumerate(self.selected_groups):
+        for i, group in enumerate(selected_groups):
             self.group_train(group)
 
-
-    def aggregate(self, selected_groups: 'list[int]'):
+    def global_aggregate(self, selected_groups: 'list[int]'):
         """
         under development
         aggregate model from selected groups
         """
-        selected_groups_sizes = self.groups_sizes[selected_groups]
+        selected_groups_sizes = self.groups_sizes_arr[selected_groups]
         selected_groups_data_sum = np.sum(selected_groups_sizes)
 
-        # state dicts of the first client in each group
-        state_dicts = []
-        for i, group in enumerate(self.selected_groups):
-            client = self.clients[group[0]]
-            model = client.model.to(client.device)
-            state_dicts.append(model.state_dict())
-
-        # calculate average model
-        state_dict_avg = copy.deepcopy(state_dicts[0]) 
+        # init state dict
+        client0 = self.clients[self.groups[selected_groups[0]][0]]
+        state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
         for key in state_dict_avg.keys():
-            state_dict_avg[key] = 0 # state_dict_avg[key] * -1
+            state_dict_avg[key] = 0.0
 
-        for key in state_dict_avg.keys():
-            for i in range(len(state_dicts)):
-                state_dict_avg[key] += state_dicts[i][key] * (self.groups_sizes[i] / selected_groups_data_sum)
-            # state_dict_avg[key] = torch.div(state_dict_avg[key], len(state_dicts))
+        # get average state dict
+        for group_index in selected_groups:
+            repr_client = self.clients[self.groups[group_index][0]]
+            state_dict = repr_client.model.state_dict()
+            # calculate weight
+            weight = self.groups_sizes_arr[group_index] / selected_groups_data_sum
+            # sampled_groups_num = int(self.config.sampling_frac * len(self.groups))
+            # unbiased_weight = weight / sampled_groups_num * self.probs_arr[group_index]
+            for key in state_dict_avg.keys():
+                state_dict_avg[key] += state_dict[key] * weight
         
         self.model.load_state_dict(state_dict_avg)
 
-
     def run(self):
+        # indices = np.random.choice(range(len(self.testset)), 1000, replace=False)
+        # subtestset = Subset(self.testset, indices=indices)
+        # # print(indices)
+        self.testloader = DataLoader(self.testset, 1000, shuffle=True)
+
         # print(self.groups)
+        accus = []
+        losses = []
         for i in range(self.config.global_epoch_num):
+            # lr decay
+            if i != 0 and i % self.config.lr_interval == 0:
+                for client in self.clients:
+                    client.set_lr(client.lr / 10)
+
             selected_groups = self.sample()
-            self.distribute(selected_groups)
+            self.global_distribute(selected_groups)
             self.global_train(selected_groups)
-            self.aggregate(selected_groups)
+            self.global_aggregate(selected_groups)
+
+            # test and record
+            if i % self.config.log_interval == 0:
+                accu, loss = test_model(self.model, self.testloader)
+
+                self.faccu.write(f'{accu} ')
+                self.floss.write(f'{loss} ')
+                self.faccu.flush()
+                self.floss.flush()
+
+                accus.append(accu)
+                losses.append(loss)
+                quick_draw(accus, self.config.result_file_pic)
+                print('epoch: {}, loss: {}, accu: {}'.format(i, loss, accu))
+
+        self.faccu.write(str(accus))
+        self.floss.write(str(losses))
+
+        self.faccu.close()
+        self.floss.close()
+    

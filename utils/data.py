@@ -1,4 +1,5 @@
 
+from typing import Iterable
 import torch
 import torchvision
 import torchvision.transforms as tvtf
@@ -6,11 +7,27 @@ from torch.utils.data.dataset import Dataset, Subset
 
 import matplotlib.pyplot as plt
 
-import copy
 import numpy as np
 
 import random
-import math
+from enum import Enum
+
+
+class TaskName(Enum):
+    CIFAR = 1
+
+def quick_draw(values: Iterable, filename: str="./pic/quick_draw.png"):
+    plt.plot(values)
+    plt.savefig(filename)
+    plt.close()
+
+def compare_draw(values_list: 'list[Iterable]', filename: str="./pic/compare_draw.png"):
+    for i, values in enumerate(values_list):
+        plt.plot(values, label=f"Data {i}")
+        plt.legend()
+        
+    plt.savefig(filename)
+    plt.close()
 
 def load_dataset_CIFAR(data_path: str, dataset_type: str):
     # enhance
@@ -40,8 +57,8 @@ def load_dataset_CIFAR(data_path: str, dataset_type: str):
 
     return (trainset, testset)
 
-def load_dataset(dataset_name: str, data_path: str="~/projects/fl-grouping/data/", dataset_type: str="both"):
-    if dataset_name == 'CIFAR':
+def load_dataset(dataset_name: TaskName, data_path: str="~/projects/fl-grouping/data/", dataset_type: str="both"):
+    if dataset_name == TaskName.CIFAR:
         return load_dataset_CIFAR(data_path, dataset_type)
 
 
@@ -174,7 +191,7 @@ class DatasetPartitioner:
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
         # plt.grid(True)
-        plt.legend()
+        # plt.legend()
 
         # plt.savefig('no_selection.pdf')
         plt.savefig(filename)
