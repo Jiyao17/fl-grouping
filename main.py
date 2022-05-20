@@ -27,9 +27,8 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.RANDOM,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/fedavg/accu", 
-        result_file_loss="./exp_data/fedavg/loss",
-        result_file_pic="./exp_data/fedavg/pic.png",
+        result_dir="./exp_data/fedavg/",
+        test_id=0,
         comment="fed avg, no grouping, random selection",
     )
 
@@ -47,9 +46,8 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.PROB_CV,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/grouping/accu_cvg_cvs", 
-        result_file_loss="./exp_data/grouping/loss_cvg_cvs",
-        result_file_pic="./exp_data/grouping/pic_cvg_cvs.png",
+        result_dir="./exp_data/grouping/cvg_cvs/",
+        test_id=0,
         comment="cvg cvs",
     )
 
@@ -66,9 +64,8 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.RANDOM,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/grouping/accu_cvg_rs", 
-        result_file_loss="./exp_data/grouping/loss_cvg_rs",
-        result_file_pic="./exp_data/grouping/pic_cvg_rs.png",
+        result_dir="./exp_data/grouping/cvg_rs/",
+        test_id=0,
         comment="",
     )
 
@@ -85,12 +82,10 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.PROB_CV,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/grouping/accu_rg_cvs", 
-        result_file_loss="./exp_data/grouping/loss_rg_cvs",
-        result_file_pic="./exp_data/grouping/pic_rg_cvs.png",
+        result_dir="./exp_data/rg_cvs/",
+        test_id=0,
         comment="",
     )
-
 
     rand_grouping_rand_select = Config(
         task_name=TaskName.CIFAR,
@@ -105,13 +100,10 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.RANDOM,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/grouping/accu_rg_rs", 
-        result_file_loss="./exp_data/grouping/loss_rg_rs",
-        result_file_pic="./exp_data/grouping/pic_rg_rs.png",
+        result_dir="./exp_data/grouping/rg_rs/",
+        test_id=0,
         comment="",
     )
-
-
 
     debug = Config(
         task_name=TaskName.CIFAR,
@@ -126,21 +118,23 @@ if __name__ == "__main__":
         selection_mode=Config.SelectionMode.PROB_CV,
         device="cuda",
         data_path="./data/", 
-        result_file_accu="./exp_data/debug/accu", 
-        result_file_loss="./exp_data/debug/loss",
-        result_file_pic="./exp_data/debug/pic",
+        result_dir="./exp_data/debug/",
+        test_id=0,
         comment="",
     )
 
 
+def rg_rs_min_group_sizes():
+    config = rand_grouping_rand_select
 
-    config = cv_grouping_cv_select
+    min_group_sizes = [5, 10, 15, 20, 25]
+    for min_group_size in min_group_sizes:
+        config.min_group_size = min_group_size
+        config.test_id = min_group_size
+        config.comment = "cvg cvs " + str(min_group_size)
 
-    exp_num = 3
-
-
-    gfl = GFL(config)
-    gfl.run()
+        gfl = GFL(config)
+        gfl.run()
 
 
 

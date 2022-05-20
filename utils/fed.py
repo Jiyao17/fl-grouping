@@ -46,9 +46,8 @@ class Config:
         # partition_mode=PartitionMode.IID,
         selection_mode=SelectionMode.RANDOM,
         device="cuda", 
-        result_file_accu="./cifar/grouping/accu", 
-        result_file_loss="./cifar/grouping/loss",
-        result_file_pic="./cifar/grouping/pic.png",
+        result_dir="./exp_data/",
+        test_mark="",
         comment="",
         data_path="../data/", 
         ) -> None:
@@ -76,9 +75,8 @@ class Config:
         self.min_group_size = min_group_size
         # results
         self.log_interval = log_interval
-        self.result_file_accu = result_file_accu
-        self.result_file_loss = result_file_loss
-        self.result_file_pic = result_file_pic
+        self.result_dir = result_dir
+        self.test_mark = test_mark
         
         self.comment = comment
     
@@ -182,12 +180,15 @@ class GFL:
     def __init__(self, config: Config) -> None:
         self.config = copy.deepcopy(config)
 
-        self.faccu = open(self.config.result_file_accu, "a")
-        self.floss = open(self.config.result_file_loss, "a")
+        self.faccu = open(self.config.result_dir + "accu" + self.config.test_mark, "a")
+        self.floss = open(self.config.result_dir + "loss" + self.config.test_mark, "a")
+        self.fcost = open(self.config.result_dir + "cost" + self.config.test_mark, "a")
         self.faccu.write("\nconfig:" + str(vars(self.config)) + "\n")
         self.floss.write("\nconfig:" + str(vars(self.config)) + "\n")
+        self.fcost.write("\nconfig:" + str(vars(self.config)) + "\n")
         self.faccu.flush()
         self.floss.flush()
+        self.fcost.flush()
 
         self.trainset, self.testset = load_dataset(self.config.task_name)
 
@@ -216,7 +217,7 @@ class GFL:
         self.groups_cvs_arr: np.ndarray = None
         # self.probs: 'list[float]'= []
         self.probs_arr: np.ndarray = None
-        self.groups_costs: np.ndarray = None
+        self.groups_costs_arr: np.ndarray = None
         # assign groups to servers
         self.servers_groups: 'list[list[int]]'= [[] for _ in range(self.config.server_num)]
         # may change over iterations
@@ -241,7 +242,7 @@ class GFL:
         form groups
         record their sigmas
         """
-        def __CV_greedy(server_clients_arg: 'list[int]', server_num, max_cv: float, min_group_size: int) -> 'list[list[int]]':
+        def __CV_greedy_grouping(server_clients_arg: 'list[int]', server_num, max_cv: float, min_group_size: int):
             """
             stop whichever sigma or group size is reached
             server_clients: list[int]
@@ -295,7 +296,7 @@ class GFL:
                     self.servers_groups[server_num].append(group_num_start)
                     group_num_start += 1
 
-        def __rand(server_clients_arg: 'list[int]', server_no, min_group_size: int) -> 'list[list[int]]':
+        def __random_grouping(server_clients_arg: 'list[int]', server_no, min_group_size: int):
             """
             stop when group size is reached
             server_clients: list[int]
@@ -339,28 +340,30 @@ class GFL:
                 # [ 0.00071367 -0.00055989  0.00091309]
                 group_overhead = 0.00071367 * group_size**2 - 0.00055989 * group_size + 0.00091309
 
+                if len(group) == 1:
+                    group_overhead = 0
                 costs[i] = training_cost * self.config.local_epoch_num + group_overhead
 
+            return costs
 
-        
         self.groups = []
         self.groups_cvs = []
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
-                __CV_greedy(server_clients, i, self.config.max_cv, self.config.min_group_size)
+                __CV_greedy_grouping(server_clients, i, self.config.max_cv, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
-                __rand(server_clients, i, self.config.min_group_size)
+                __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_sizes = copy.deepcopy(self.clients_sizes)
                 self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
                 self.servers_groups = copy.deepcopy(self.servers_clients)
 
-
         self.groups_sizes_arr = np.array(self.groups_sizes)
         self.groups_weights_arr = self.groups_sizes / np.sum(self.groups_sizes)
         self.groups_cvs_arr = np.array(self.groups_cvs)
+        self.groups_costs_arr = __calc_group_cost(self.groups)
 
     def global_distribute(self, selected_groups: 'list[int]'):
         """
@@ -481,6 +484,15 @@ class GFL:
         
         self.model.load_state_dict(state_dict_avg)
 
+    def calc_selected_groups_cost(self, selected_groups: 'list[int]'):
+        """
+        return cost
+        """
+        cost = 0
+        for group_index in selected_groups:
+            cost += self.groups_costs_arr[group_index]
+        return cost
+
     def run(self):
         # indices = np.random.choice(range(len(self.testset)), 1000, replace=False)
         # subtestset = Subset(self.testset, indices=indices)
@@ -490,6 +502,8 @@ class GFL:
         # print(self.groups)
         accus = []
         losses = []
+        costs = []
+        cur_cost = 0
         for i in range(self.config.global_epoch_num):
             # lr decay
             if i != 0 and i % self.config.lr_interval == 0:
@@ -501,23 +515,32 @@ class GFL:
             self.global_train(selected_groups)
             self.global_aggregate(selected_groups)
 
+            cur_cost += self.calc_selected_groups_cost(selected_groups)
+
+
             # test and record
             if i % self.config.log_interval == 0:
                 accu, loss = test_model(self.model, self.testloader)
 
                 self.faccu.write(f'{accu} ')
                 self.floss.write(f'{loss} ')
+                self.fcost.write(f'{cur_cost} ')
                 self.faccu.flush()
                 self.floss.flush()
+                self.fcost.flush()
 
                 accus.append(accu)
                 losses.append(loss)
-                quick_draw(accus, self.config.result_file_pic)
-                print('epoch: {}, loss: {}, accu: {}'.format(i, loss, accu))
+                costs.append(cur_cost)
+
+                quick_draw(accus, self.config.result_dir + str(self.config.test_id) + 'accu.png')
+                print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost}')
 
         self.faccu.write(str(accus))
         self.floss.write(str(losses))
+        self.fcost.write(str(costs))
 
         self.faccu.close()
         self.floss.close()
+        self.fcost.close()
     
