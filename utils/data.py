@@ -98,8 +98,29 @@ def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
 
 
 class DatasetPartitioner:
+    @staticmethod
+    def plot_distribution(distributions: np.ndarray, num: int, filename: str="./pic/distribution.png"):
+        
+        xaxis = np.arange(num)
+        base = np.zeros(shape=(num,))
+        for i in range(distributions.shape[1]):
+            plt.bar(xaxis, distributions[:,i][0:num], bottom=base)
+            base += distributions[:,i][0:num]
 
-    def __init__(self, dataset: Dataset, subset_num: int=1000, data_num_range: 'tuple[int]'=(10, 50), alpha: float=0.1, seed=0):
+        plt.rc('font', size=16)
+        plt.subplots_adjust(0.15, 0.15, 0.95, 0.95)
+
+        plt.xlabel('Clients', fontsize=20)
+        plt.ylabel('Distribution', fontsize=20)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        # plt.grid(True)
+        # plt.legend()
+
+        # plt.savefig('no_selection.pdf')
+        plt.savefig(filename)
+
+    def __init__(self, dataset: Dataset, subset_num: int=1000, data_num_range: 'tuple[int]'=(10, 50), alpha: float=0.1):
         self.dataset = dataset
         self.subset_num = subset_num
         # range = (min, max)
@@ -107,16 +128,10 @@ class DatasetPartitioner:
         self.label_type_num = len(get_targets_set_as_list(dataset))
         self.alpha = [alpha] * self.label_type_num
 
-        if seed is not None:
-            random.seed(seed)
-            np.random.seed(seed)
-            torch.manual_seed(seed)
-
         self.distributions: np.ndarray = None
         self.cvs: np.ndarray = None
         self.subsets: list[Dataset] = []
         self.subsets_sizes: np.ndarray = None
-
 
     def get_distributions(self):
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
@@ -170,6 +185,7 @@ class DatasetPartitioner:
                 distributions[i][category] += 1
 
         return distributions
+
 
     def draw(self, num: int=None, filename: str="./pic/distribution.png"):
         if self.distributions is None:

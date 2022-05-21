@@ -19,6 +19,7 @@ class Config:
     class SelectionMode(Enum):
         # prob based, smaller than random
         PROB_CV = 1
+        PROB_WEIGHT = 2
 
         RANDOM = 10
         # ranking based, greater than random
@@ -47,7 +48,7 @@ class Config:
         selection_mode=SelectionMode.RANDOM,
         device="cuda", 
         result_dir="./exp_data/",
-        test_mark="",
+        test_mark: str="",
         comment="",
         data_path="../data/", 
         ) -> None:
@@ -198,8 +199,8 @@ class GFL:
         self.subsets_indices = partitioner.get_subsets()
         partitioner.draw(20,"./pic/dubug.png")
         self.model, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
-        self.clients_sizes = np.sum(self.distributions, axis=1)
-        self.clients_weights = self.clients_sizes / np.sum(self.distributions)
+        self.clients_data_nums = np.sum(self.distributions, axis=1)
+        self.clients_weights = self.clients_data_nums / np.sum(self.distributions)
 
         # assign clients to servers
         self.servers_clients: 'list[list[int]]' = []
@@ -209,8 +210,8 @@ class GFL:
             self.servers_clients.append(indices[i*client_per_server:(i+1)*client_per_server])
         # only modified in group() once
         self.groups: 'list[int]'= []
-        self.groups_sizes: 'list[int]'= []
-        self.groups_sizes_arr: np.ndarray = None
+        self.groups_data_nums: 'list[int]'= []
+        self.groups_data_nums_arr: np.ndarray = None
         self.groups_weights: 'list[int]'= []
         self.groups_weights_arr: np.ndarray = None
         self.groups_cvs: 'list[int]'= []
@@ -224,6 +225,8 @@ class GFL:
         self.selected_groups: np.ndarray = None
 
         self.group()
+        pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".png"
+        self.inspect_group_distribution(self.groups, 20, pic_filename)
 
     def __calc_group_cv(self, subset_indices: 'list[int]') -> float:
         """
@@ -236,6 +239,23 @@ class GFL:
             distribution += self.distributions[index]
         cv = np.std(distribution) / np.mean(distribution)
         return cv
+
+    def inspect_group_distribution(self, groups: 'list[list[int]]', num: int=None, filename:str="./pic/group_distribution.png") -> None:
+        """
+        return 
+        distribution: np.ndarray, (label_type_num,)
+        """
+        groups_distrs: np.ndarray = np.zeros((len(groups), self.distributions.shape[1]))
+        for i, group in enumerate(groups):
+            for j, client_index in enumerate(group):
+                groups_distrs[i] += self.distributions[client_index]
+
+        if num is None:
+            num = len(self.distributions)
+
+        DatasetPartitioner.plot_distribution(groups_distrs, num, filename)
+
+
 
     def group(self):
         """
@@ -255,14 +275,15 @@ class GFL:
             while len(server_clients) > 0:
                 # try to form a new group
 
-                # find the client with min cv as the first client in the group
+                # find a random client as the first one in the group
                 cur_min_cv = self.__calc_group_cv([server_clients[0]])
                 new_group: 'list[int]' = [server_clients[0]]
-                for client in server_clients:
-                    cv = self.__calc_group_cv([client])
-                    if cv < cur_min_cv:
-                        cur_min_cv = cv
-                        new_group = [client]
+                # dont greedy for the first client
+                # for client in server_clients:
+                #     cv = self.__calc_group_cv([client])
+                #     if cv < cur_min_cv:
+                #         cur_min_cv = cv
+                #         new_group = [client]
                 server_clients.remove(new_group[0])
 
                 # try to add more clients to the group
@@ -291,7 +312,7 @@ class GFL:
                     continue
                 else:
                     self.groups.append(new_group)
-                    self.groups_sizes.append(np.sum(self.distributions[new_group]))
+                    self.groups_data_nums.append(np.sum(self.distributions[new_group]))
                     self.groups_cvs.append(cur_min_cv)
                     self.servers_groups[server_num].append(group_num_start)
                     group_num_start += 1
@@ -322,27 +343,28 @@ class GFL:
                     continue
                 else:
                     self.groups.append(new_group)
-                    self.groups_sizes.append(np.sum(self.distributions[new_group]))
+                    self.groups_data_nums.append(np.sum(self.distributions[new_group]))
                     group_cv = self.__calc_group_cv(new_group)
                     self.groups_cvs.append(group_cv)
                     self.servers_groups[server_no].append(group_num_start)
                     group_num_start += 1
         
         def __calc_group_cost(groups: 'list[list[int]]') -> np.ndarray:
+            # cost for one group train: local_cost * local epoch num + group aggregate cost * 1
             costs = np.zeros((len(groups),))
             for i, group in enumerate(groups):
                 training_cost = 0
                 for client_index in group:
-                    # [0.00495469 0.01023199]
-                    training_cost += 0.00495469 * self.clients_sizes[client_index] + 0.01023199
+                    # [0.08827506 0.05286743]
+                    training_cost += (0.08827506 * self.clients_data_nums[client_index] + 0.05286743) * self.config.local_epoch_num
 
                 group_size = len(group)
-                # [ 0.00071367 -0.00055989  0.00091309]
-                group_overhead = 0.00071367 * group_size**2 - 0.00055989 * group_size + 0.00091309
+                # [ 0.00509987 0.00114916  -0.03624395]
+                group_overhead = (0.00509987 * group_size**2 + 0.00114916 * group_size - 0.03624395)
 
-                if len(group) == 1:
+                if len(group) < 5:
                     group_overhead = 0
-                costs[i] = training_cost * self.config.local_epoch_num + group_overhead
+                costs[i] = training_cost + group_overhead
 
             return costs
 
@@ -356,12 +378,12 @@ class GFL:
                 __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
-                self.groups_sizes = copy.deepcopy(self.clients_sizes)
+                self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
                 self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
                 self.servers_groups = copy.deepcopy(self.servers_clients)
 
-        self.groups_sizes_arr = np.array(self.groups_sizes)
-        self.groups_weights_arr = self.groups_sizes / np.sum(self.groups_sizes)
+        self.groups_data_nums_arr = np.array(self.groups_data_nums)
+        self.groups_weights_arr = self.groups_data_nums / np.sum(self.groups_data_nums)
         self.groups_cvs_arr = np.array(self.groups_cvs)
         self.groups_costs_arr = __calc_group_cost(self.groups)
 
@@ -384,9 +406,13 @@ class GFL:
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
             probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
         elif self.config.selection_mode == Config.SelectionMode.PROB_CV:
-            probs = 1.0 / self.groups_cvs_arr
+            probs = (1.0 / self.groups_cvs_arr)
+            # np.multiply(probs, self.groups_data_nums_arr, out=probs)
             sum_rcv = np.sum(probs)
             probs = probs / sum_rcv
+        elif self.config.selection_mode == Config.SelectionMode.PROB_WEIGHT:
+            sum_sizes = np.sum(self.groups_data_nums_arr)
+            probs = self.groups_data_nums_arr / sum_sizes
         
         self.probs_arr = probs
         return probs
@@ -403,10 +429,14 @@ class GFL:
             probs = self.__calc_probs()
 
             indices = range(len(self.groups))
-            sampling_num = int(self.config.sampling_frac * len(self.groups))
+            sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / np.mean(self.groups_data_nums_arr))
             self.selected_groups = np.random.choice(indices, sampling_num, p=probs, replace=False)
+        
         else:
             pass
+
+        # add more group if not enough
+
 
         return self.selected_groups
 
@@ -440,7 +470,7 @@ class GFL:
             # get average state dict
             for client_index in self.groups[group_index]:
                 state_dict = self.clients[client_index].model.state_dict()
-                weight = self.clients_sizes[client_index] / self.groups_sizes[group_index]
+                weight = self.clients_data_nums[client_index] / self.groups_data_nums[group_index]
                 for key in state_dict_avg.keys():
                     state_dict_avg[key] += state_dict[key] * weight
 
@@ -462,7 +492,7 @@ class GFL:
         under development
         aggregate model from selected groups
         """
-        selected_groups_sizes = self.groups_sizes_arr[selected_groups]
+        selected_groups_sizes = self.groups_data_nums_arr[selected_groups]
         selected_groups_data_sum = np.sum(selected_groups_sizes)
 
         # init state dict
@@ -476,7 +506,7 @@ class GFL:
             repr_client = self.clients[self.groups[group_index][0]]
             state_dict = repr_client.model.state_dict()
             # calculate weight
-            weight = self.groups_sizes_arr[group_index] / selected_groups_data_sum
+            weight = self.groups_data_nums_arr[group_index] / selected_groups_data_sum
             # sampled_groups_num = int(self.config.sampling_frac * len(self.groups))
             # unbiased_weight = weight / sampled_groups_num * self.probs_arr[group_index]
             for key in state_dict_avg.keys():
@@ -490,7 +520,7 @@ class GFL:
         """
         cost = 0
         for group_index in selected_groups:
-            cost += self.groups_costs_arr[group_index]
+            cost += self.groups_costs_arr[group_index] * self.config.group_epoch_num
         return cost
 
     def run(self):
@@ -506,9 +536,10 @@ class GFL:
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
             # lr decay
-            if i != 0 and i % self.config.lr_interval == 0:
+            if i % self.config.lr_interval == self.config.lr_interval - 1:
                 for client in self.clients:
                     client.set_lr(client.lr / 10)
+                print('lr decay to {}'.format(self.clients[0].lr))
 
             selected_groups = self.sample()
             self.global_distribute(selected_groups)
@@ -519,7 +550,7 @@ class GFL:
 
 
             # test and record
-            if i % self.config.log_interval == 0:
+            if i % self.config.log_interval == self.config.log_interval - 1:
                 accu, loss = test_model(self.model, self.testloader)
 
                 self.faccu.write(f'{accu} ')
@@ -533,12 +564,15 @@ class GFL:
                 losses.append(loss)
                 costs.append(cur_cost)
 
-                quick_draw(accus, self.config.result_dir + str(self.config.test_id) + 'accu.png')
+                quick_draw(accus, self.config.result_dir + 'accu' + str(self.config.test_mark) + '.png')
                 print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost}')
+                data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
+                
+                print(f'epoch {i} selected data num: {data_selected}')
 
-        self.faccu.write(str(accus))
-        self.floss.write(str(losses))
-        self.fcost.write(str(costs))
+        self.faccu.write(str(accus)+", ")
+        self.floss.write(str(losses)+", ")
+        self.fcost.write(str(costs)+", ")
 
         self.faccu.close()
         self.floss.close()
