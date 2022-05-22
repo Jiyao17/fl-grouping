@@ -1,0 +1,3 @@
+
+config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 10, 'client_num': 1000, 'data_num_range': (10, 50), 'alpha': 0.1, 'sampling_frac': 0.2, 'data_path': './data/', 'global_epoch_num': 200, 'group_epoch_num': 5, 'local_epoch_num': 1, 'lr_interval': 100, 'lr': 0.01, 'batch_size': 50, 'device': 'cuda', 'selection_mode': <SelectionMode.RANDOM: 10>, 'grouping_mode': <GroupingMode.RANDOM: 2>, 'max_cv': 0.1, 'min_group_size': 15, 'log_interval': 5, 'result_dir': './exp_data/grouping/rg_rs/', 'test_mark': '_gs15', 'comment': ''}
+12183.657317950001 24206.2126514 36469.75889865 48777.884051199995 

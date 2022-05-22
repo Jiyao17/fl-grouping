@@ -255,8 +255,6 @@ class GFL:
 
         DatasetPartitioner.plot_distribution(groups_distrs, num, filename)
 
-
-
     def group(self):
         """
         form groups
@@ -415,7 +413,7 @@ class GFL:
             probs = self.groups_data_nums_arr / sum_sizes
         
         self.probs_arr = probs
-        return probs
+        return probs.copy()
 
     def sample(self) -> np.ndarray:
         """
@@ -427,9 +425,11 @@ class GFL:
 
         if self.config.selection_mode.value <= Config.SelectionMode.RANDOM.value:
             probs = self.__calc_probs()
-
+            pc = probs.copy()
+            np.multiply(probs, self.groups_data_nums_arr, out=pc) # weighted average
+            weighted_avg = np.sum(pc)
             indices = range(len(self.groups))
-            sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / np.mean(self.groups_data_nums_arr))
+            sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / weighted_avg)
             self.selected_groups = np.random.choice(indices, sampling_num, p=probs, replace=False)
         
         else:
@@ -569,10 +569,6 @@ class GFL:
                 data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
                 
                 print(f'epoch {i} selected data num: {data_selected}')
-
-        self.faccu.write(str(accus)+", ")
-        self.floss.write(str(losses)+", ")
-        self.fcost.write(str(costs)+", ")
 
         self.faccu.close()
         self.floss.close()

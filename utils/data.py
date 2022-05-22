@@ -21,14 +21,6 @@ def quick_draw(values: Iterable, filename: str="./pic/quick_draw.png"):
     plt.savefig(filename)
     plt.close()
 
-def compare_draw(values_list: 'list[Iterable]', filename: str="./pic/compare_draw.png"):
-    for i, values in enumerate(values_list):
-        plt.plot(values, label=f"Data {i}")
-        plt.legend()
-        
-    plt.savefig(filename)
-    plt.close()
-
 def load_dataset_CIFAR(data_path: str, dataset_type: str):
     # enhance
     # Use the torch.transforms, a package on PIL Image.
@@ -119,6 +111,7 @@ class DatasetPartitioner:
 
         # plt.savefig('no_selection.pdf')
         plt.savefig(filename)
+        plt.clf()
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, data_num_range: 'tuple[int]'=(10, 50), alpha: float=0.1):
         self.dataset = dataset
@@ -211,3 +204,4 @@ class DatasetPartitioner:
 
         # plt.savefig('no_selection.pdf')
         plt.savefig(filename)
+        plt.clf()
