@@ -276,12 +276,12 @@ class GFL:
                 # find a random client as the first one in the group
                 cur_min_cv = self.__calc_group_cv([server_clients[0]])
                 new_group: 'list[int]' = [server_clients[0]]
-                # dont greedy for the first client
-                # for client in server_clients:
-                #     cv = self.__calc_group_cv([client])
-                #     if cv < cur_min_cv:
-                #         cur_min_cv = cv
-                #         new_group = [client]
+                # greedy for the first client
+                for client in server_clients:
+                    cv = self.__calc_group_cv([client])
+                    if cv < cur_min_cv:
+                        cur_min_cv = cv
+                        new_group = [client]
                 server_clients.remove(new_group[0])
 
                 # try to add more clients to the group
@@ -404,7 +404,8 @@ class GFL:
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
             probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
         elif self.config.selection_mode == Config.SelectionMode.PROB_CV:
-            probs = (1.0 / self.groups_cvs_arr)
+            probs = np.exp(np.square(1.0 / self.groups_cvs_arr))
+            # probs = np.exp(1.0 / self.groups_cvs_arr)
             # np.multiply(probs, self.groups_data_nums_arr, out=probs)
             sum_rcv = np.sum(probs)
             probs = probs / sum_rcv

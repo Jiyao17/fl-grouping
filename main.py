@@ -35,6 +35,7 @@ fedavg.result_dir = "./exp_data/fedavg/"
 cvg_cvs = copy.deepcopy(base_config)
 cvg_cvs.group_epoch_num=5
 cvg_cvs.local_epoch_num=1
+cvg_cvs.min_group_size=10
 cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
 cvg_cvs.selection_mode = Config.SelectionMode.PROB_CV
 cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/"
@@ -65,7 +66,7 @@ debug = Config(
     task_name=TaskName.CIFAR,
     server_num=10, client_num=1000, data_num_range=(10, 50), alpha=0.1,
     sampling_frac=0.2,
-    global_epoch_num=500, group_epoch_num=5, local_epoch_num=1,
+    global_epoch_num=300, group_epoch_num=5, local_epoch_num=1,
     lr=0.1, lr_interval=1000, local_batch_size=10,
     log_interval=5, 
     # alpha=0.1: sigma = 
@@ -89,9 +90,10 @@ if __name__ == "__main__":
     #     torch.manual_seed(seed)
     #     torch.cuda.manual_seed(seed)
 
-    rg_rs.min_group_size = 20
-    rg_rs.test_mark = "gs20"
     config = rg_rs
+    config.min_group_size = 30
+    config.test_mark = "gs30"
+    config.comment = ""
     gfl = GFL(config)
     gfl.run()
 
