@@ -209,7 +209,7 @@ class GFL:
         for i in range(self.config.server_num):
             self.servers_clients.append(indices[i*client_per_server:(i+1)*client_per_server])
         # only modified in group() once
-        self.groups: 'list[int]'= []
+        self.groups: 'list[list[int]]'= []
         self.groups_data_nums: 'list[int]'= []
         self.groups_data_nums_arr: np.ndarray = None
         self.groups_weights: 'list[int]'= []
@@ -472,7 +472,8 @@ class GFL:
             # get average state dict
             for client_index in self.groups[group_index]:
                 state_dict = self.clients[client_index].model.state_dict()
-                weight = self.clients_data_nums[client_index] / self.groups_data_nums[group_index]
+                # weight = self.clients_data_nums[client_index] / self.groups_data_nums[group_index]
+                weight = 1.0 / len(self.groups[group_index])
                 for key in state_dict_avg.keys():
                     state_dict_avg[key] += state_dict[key] * weight
 
@@ -508,7 +509,8 @@ class GFL:
             repr_client = self.clients[self.groups[group_index][0]]
             state_dict = repr_client.model.state_dict()
             # calculate weight
-            weight = self.groups_data_nums_arr[group_index] / selected_groups_data_sum
+            # weight = self.groups_data_nums_arr[group_index] / selected_groups_data_sum
+            weight = 1.0 / self.selected_groups.shape[0]
             # sampled_groups_num = int(self.config.sampling_frac * len(self.groups))
             # unbiased_weight = weight / sampled_groups_num * self.probs_arr[group_index]
             for key in state_dict_avg.keys():
