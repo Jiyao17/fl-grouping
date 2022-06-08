@@ -358,7 +358,7 @@ class GFL:
 
                 group_size = len(group)
                 # [ 0.00509987 0.00114916  -0.03624395]
-                group_overhead = (0.00509987 * group_size**2 + 0.00114916 * group_size - 0.03624395)
+                group_overhead = (0.00509987 * (group_size**2) + 0.00114916 * group_size - 0.03624395)
 
                 if len(group) < 5:
                     group_overhead = 0
@@ -404,8 +404,10 @@ class GFL:
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
             probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
         elif self.config.selection_mode == Config.SelectionMode.PROB_CV:
-            probs = np.exp(np.square(1.0 / self.groups_cvs_arr))
-            # probs = np.exp(1.0 / self.groups_cvs_arr)
+            probs0 = np.exp(np.square(1.0 / self.groups_cvs_arr))
+            probs = np.exp(1.0 / self.groups_cvs_arr)
+            print("P-ESRCV ", probs0)
+            print("P-ERCV ", probs)
             # np.multiply(probs, self.groups_data_nums_arr, out=probs)
             sum_rcv = np.sum(probs)
             probs = probs / sum_rcv
@@ -437,7 +439,6 @@ class GFL:
             pass
 
         # add more group if not enough
-
 
         return self.selected_groups
 
@@ -549,6 +550,8 @@ class GFL:
 
             cur_cost += self.calc_selected_groups_cost(selected_groups)
 
+            print("costs", self.groups_costs_arr)
+            print("selected", self.selected_groups)
 
             # test and record
             if i % self.config.log_interval == self.config.log_interval - 1:

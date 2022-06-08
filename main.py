@@ -91,8 +91,8 @@ if __name__ == "__main__":
     #     torch.cuda.manual_seed(seed)
 
     config = rg_rs
-    config.min_group_size = 30
-    config.test_mark = "gs30"
+    config.min_group_size = 50
+    config.test_mark = "gs50"
     config.comment = ""
     gfl = GFL(config)
     gfl.run()
