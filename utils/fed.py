@@ -18,8 +18,11 @@ class Config:
 
     class SelectionMode(Enum):
         # prob based, smaller than random
-        PROB_ESRCV = 1
-        PROB_WEIGHT = 2
+        PROB_RCV = 1
+        PROB_SRCV = 2
+        PROB_ESRCV = 3
+        PROB_WEIGHT = 9
+
 
         RANDOM = 10
         # ranking based, greater than random
@@ -39,7 +42,7 @@ class Config:
 
     def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
-        sampling_frac=0.2,
+        sampling_frac=0.2, budget=10**7,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
@@ -61,6 +64,7 @@ class Config:
         self.alpha = alpha
         self.sampling_frac = sampling_frac
         self.data_path = data_path
+        self.budget = budget
         self.global_epoch_num = global_epoch_num
         self.group_epoch_num = group_epoch_num
         self.local_epoch_num = local_epoch_num
@@ -72,7 +76,7 @@ class Config:
         self.selection_mode = selection_mode
         # self.partition_mode = partition_mode
         self.grouping_mode = grouping_mode
-        self.max_cv = max_group_cv
+        self.max_group_cv = max_group_cv
         self.min_group_size = min_group_size
         # results
         self.log_interval = log_interval
@@ -127,7 +131,7 @@ class Client:
 
         self.model = model
         self.trainset = trainset
-        self.training_cost = self.calc_training_cost(len(self.trainset.indices))
+        # self.training_cost = self.calc_training_cost(len(self.trainset.indices))
         self.lr = lr
         self.local_epoch_num = local_epoch_num
         self.device = device
@@ -138,7 +142,7 @@ class Client:
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         # training results
-        self.train_loss = 0
+        # self.train_loss = 0
         self.grad: list[torch.Tensor] = [ param.clone().to(self.device) for param in self.model.parameters()]
 
     def train(self):
@@ -387,7 +391,7 @@ class GFL:
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
-                __CV_greedy_grouping(server_clients, i, self.config.max_cv, self.config.min_group_size)
+                __CV_greedy_grouping(server_clients, i, self.config.max_group_cv, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
                 __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
@@ -419,7 +423,20 @@ class GFL:
         probs: np.ndarray = None
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
             probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
-        elif self.config.selection_mode == Config.SelectionMode.PROB_CV:
+        elif self.config.selection_mode == Config.SelectionMode.PROB_RCV:
+            probs = np.square(1.0 / self.groups_cvs_arr)
+            # probs = np.exp(1.0 / self.groups_cvs_arr)
+            # np.multiply(probs, self.groups_data_nums_arr, out=probs)
+            sum_rcv = np.sum(probs)
+            probs = probs / sum_rcv
+        elif self.config.selection_mode == Config.SelectionMode.PROB_SRCV:
+            # probs = 1.0 / self.groups_cvs_arr
+            probs = np.exp(1.0 / self.groups_cvs_arr)
+            # np.multiply(probs, self.groups_data_nums_arr, out=probs)
+            sum_rcv = np.sum(probs)
+            probs = probs / sum_rcv
+
+        elif self.config.selection_mode == Config.SelectionMode.PROB_ESRCV:
             probs = np.exp(np.square(1.0 / self.groups_cvs_arr))
             # probs = np.exp(1.0 / self.groups_cvs_arr)
             # np.multiply(probs, self.groups_data_nums_arr, out=probs)
@@ -524,6 +541,8 @@ class GFL:
             state_dict = repr_client.model.state_dict()
             # calculate weight
             weight = self.groups_data_nums_arr[group_index] / selected_groups_data_sum
+            # unibiased_weight = 
+            
             # sampled_groups_num = int(self.config.sampling_frac * len(self.groups))
             # unbiased_weight = weight / sampled_groups_num * self.probs_arr[group_index]
             for key in state_dict_avg.keys():
