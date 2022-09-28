@@ -1,0 +1,3 @@
+
+config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 5, 'client_num': 500, 'data_num_range': (10, 51), 'alpha': 0.1, 'sampling_frac': 0.2, 'data_path': './data/', 'global_epoch_num': 100, 'group_epoch_num': 1, 'local_epoch_num': 5, 'lr_interval': 1000, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'train_method': <TrainMethod.FEDPROX: 3>, 'selection_mode': <SelectionMode.RANDOM: 10>, 'grouping_mode': <GroupingMode.RANDOM: 2>, 'max_cv': 0.5, 'min_group_size': 5, 'log_interval': 5, 'result_dir': './exp_data/debug/', 'test_mark': '_fedprox', 'comment': ''}
+0.1862 0.1607 0.2279 0.1863 0.244 0.2176 0.2703 0.2434 0.2624 0.2685 0.2779 0.2916 0.2964 0.2427 0.2949 0.3184 0.314 0.3112 

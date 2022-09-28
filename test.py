@@ -35,13 +35,23 @@
 # print("real probs", occur[:10] / 10000)
 # print("real probs", occur[:10] / sample_num / 10000)
 
-from utils.model import *
+# from utils.model import *
 
-net = CIFARResNet()
+# net = CIFARResNet()
 
-params_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
-for name, param in net.named_parameters():
-    print(param.dtype)
-    break
+# params_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
+# for name, param in net.named_parameters():
+#     print(param.dtype)
+#     break
 
-print(params_num)
+# print(params_num)
+
+from utils.data import load_dataset, TaskName, DatasetPartitioner
+
+trainset, testset = load_dataset(TaskName.CIFAR)
+
+partitioner = DatasetPartitioner(trainset, 1000, (10, 50), (0.05, 0.50))
+label_type_num = partitioner.label_type_num
+distributions = partitioner.get_distributions()
+subsets_indices = partitioner.get_subsets()
+partitioner.draw(20)

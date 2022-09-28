@@ -10,17 +10,18 @@ from utils.data import TaskName
 
 base_config = Config(
     task_name=TaskName.CIFAR,
-    server_num=5, client_num=1000, data_num_range=(10, 51), alpha=0.1,
-    sampling_frac=0.2,
-    global_epoch_num=500, 
+    server_num=10, client_num=1000, data_num_range=(10, 51), alpha=(0.1, 0.1),
+    sampling_frac=0.2, budget=10**7,
+    global_epoch_num=500,
     # the following line may vary
-    group_epoch_num=1, local_epoch_num=5,
+    group_epoch_num=5, local_epoch_num=1,
     lr=0.01, lr_interval=1000, local_batch_size=10,
     log_interval=5, 
     # the following two lines may vary
-    grouping_mode=Config.GroupingMode.NONE, max_group_cv=0.5, min_group_size=5,
+    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
     selection_mode=Config.SelectionMode.RANDOM,
     device="cuda",
+    train_method=Config.TrainMethod.SGD,
     data_path="./data/", 
     # the following 2 lines may vary
     result_dir="",
@@ -29,12 +30,13 @@ base_config = Config(
 )
 
 fedavg = copy.deepcopy(base_config)
+fedavg.min_group_size = 1
 fedavg.result_dir = "./exp_data/fedavg/"
 
 grouping = copy.deepcopy(base_config)
 # grouping.lr_interval = grouping.global_epoch_num // 2
-grouping.group_epoch_num=5
-grouping.local_epoch_num=1
+grouping.group_epoch_num=10
+grouping.local_epoch_num=2
 
 cvg_cvs = copy.deepcopy(grouping)
 cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
@@ -91,19 +93,20 @@ var_30_30.test_mark = "_30-30"
 
 debug = Config(
     task_name=TaskName.CIFAR,
-    server_num=5, client_num=1000, data_num_range=(10, 101), alpha=0.1,
-    sampling_frac=0.2,
-    global_epoch_num=100, group_epoch_num=5, local_epoch_num=2,
+    train_method=Config.TrainMethod.SGD,
+    server_num=3, client_num=600, data_num_range=(10, 101), alpha=(0.1, 0.1),
+    sampling_frac=0.2, budget=10**7,
+    global_epoch_num=500, group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
-    log_interval=5, 
+    log_interval=1, 
     # alpha=0.1: sigma = 
-    grouping_mode=Config.GroupingMode.CV_GREEDY, max_group_cv=0.1, min_group_size=10,
+    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
     # partition_mode=Config.PartitionMode.IID,
-    selection_mode=Config.SelectionMode.PROB_ERCV,
+    selection_mode=Config.SelectionMode.RANDOM,
     device="cuda",
     data_path="./data/", 
     result_dir="./exp_data/debug/",
-    test_mark="_10-50_5*2",
+    test_mark="_sgd",
     comment="",
 )
 
@@ -119,6 +122,7 @@ gs_comp = Config(
     # the following two lines may vary
     grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
     selection_mode=Config.SelectionMode.RANDOM,
+    aggregation_option=Config.AggregationOption.NUMERICAL_REGULARIZATION,
     device="cuda",
     data_path="./data/", 
     # the following 2 lines may vary
@@ -143,14 +147,28 @@ if __name__ == "__main__":
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
 
-    config = rg_rs
-    config.local_epoch_num = 2
-    config.group_epoch_num = 3
+
+    config = cvg_cvs
+    config.aggregation_option = Config.AggregationOption.WEIGHTED_AVERAGE
+    # config.grouping_mode = Config.GroupingMode.CV_GREEDY
+    # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
+    config.min_group_size = 10
+    config.max_group_cv = 1.0
+
+    config.budget = 10**7
+    config.train_method = Config.TrainMethod.SGD
+    config.log_interval = 5
+
+    config.group_epoch_num = 5
+    config.local_epoch_num = 1
+    config.alpha = (0.1, 0.1)
+
+
+    # 0.05 0.1 0.5 0.01
 
     # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    config.min_group_size = 5
-    config.test_mark = "_32"
-    # config.comment = "no lr decay, cvgcvs 10-100"
+    config.test_mark = "_alpha0.1_cv1.0_5*1"
+    config.comment = "weighted average only"
     gfl = GFL(config)
     gfl.run()
 

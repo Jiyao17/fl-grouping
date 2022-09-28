@@ -36,17 +36,27 @@ class Config:
         NONIID = 4
 
     
+    class TrainMethod(Enum):
+        SGD = 1
+        SCAFFOLD = 2
+        FEDPROX = 3
+        
+    class AggregationOption(Enum):
+        WEIGHTED_AVERAGE = 1
+        UNBIASED = 2
+        NUMERICAL_REGULARIZATION = 3
 
     def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
-        sampling_frac=0.2,
+        sampling_frac=0.2, budget=10**6,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
-        grouping_mode=GroupingMode.CV_GREEDY, max_group_cv=1, min_group_size=10,
+        grouping_mode=GroupingMode.CV_GREEDY, max_group_cv=1.0, min_group_size=10,
         # partition_mode=PartitionMode.IID,
-        selection_mode=SelectionMode.RANDOM,
+        selection_mode=SelectionMode.RANDOM, aggregation_option=7,
         device="cuda", 
+        train_method = TrainMethod.SGD,
         result_dir="./exp_data/",
         test_mark: str="",
         comment="",
@@ -61,6 +71,7 @@ class Config:
         self.alpha = alpha
         self.sampling_frac = sampling_frac
         self.data_path = data_path
+        self.budget = budget
         self.global_epoch_num = global_epoch_num
         self.group_epoch_num = group_epoch_num
         self.local_epoch_num = local_epoch_num
@@ -68,11 +79,14 @@ class Config:
         self.lr = lr
         self.batch_size = local_batch_size
         self.device = device
+        # SCAFFOLD or not
+        self.train_method = train_method
 
         self.selection_mode = selection_mode
+        self.aggregation_option: Config.AggregationOption = aggregation_option
         # self.partition_mode = partition_mode
         self.grouping_mode = grouping_mode
-        self.max_cv = max_group_cv
+        self.max_group_cv = max_group_cv
         self.min_group_size = min_group_size
         # results
         self.log_interval = log_interval
@@ -88,8 +102,8 @@ class Config:
 
 class Client:
     @staticmethod
-    def init_clients(subsets_indexes: 'list[Subset]', lr, local_epoch_num, device, batch_size, loss=nn.CrossEntropyLoss()) \
-        -> 'tuple[nn.Module, list[Client]]':
+    def init_clients(subsets_indexes: 'list[Subset]', lr, local_epoch_num, train_method, device, batch_size, loss=nn.CrossEntropyLoss()) \
+        -> 'tuple[nn.Module, list[torch.Tensor], list[Client]]':
         """
         return
         model: global model
@@ -105,21 +119,26 @@ class Client:
                 sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
         model.load_state_dict(sd)
 
+        # global c in SCAFFOLD
+        c: list[torch.Tensor] = [ param.clone().zero_().to(device) for param in model.parameters()]
+
+
         for i in range(client_num):
             new_model = CIFARResNet()
             # torch.nn.init.normal_(model)
             sd = copy.deepcopy(model.state_dict())
             new_model.load_state_dict(sd)
 
-            clients.append(Client(new_model, subsets_indexes[i], lr, local_epoch_num, device, batch_size, loss))
+            clients.append(Client(new_model, subsets_indexes[i], lr, local_epoch_num, train_method, device, batch_size, loss))
 
-        return model, clients
+        return model, c, clients
 
     def __init__(
         self, model: nn.Module, 
         trainset: Subset, 
         lr: float, 
         local_epoch_num=5,
+        train_method = Config.TrainMethod.SGD,
         device: str="cpu", 
         batch_size: int=0, 
         loss_fn=nn.CrossEntropyLoss()
@@ -127,9 +146,10 @@ class Client:
 
         self.model = model
         self.trainset = trainset
-        self.training_cost = self.calc_training_cost(len(self.trainset.indices))
+        # self.training_cost = self.calc_training_cost(len(self.trainset.indices))
         self.lr = lr
         self.local_epoch_num = local_epoch_num
+        self.train_method  = train_method
         self.device = device
         self.batch_size = batch_size if batch_size != 0 else len(trainset.indices)
         self.loss_fn = loss_fn
@@ -140,10 +160,23 @@ class Client:
         # training results
         self.train_loss = 0
         self.grad: list[torch.Tensor] = [ param.clone().to(self.device) for param in self.model.parameters()]
+        self.temp_model_params: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
+        self.c_client: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
+        self.c_delta: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
+        # self.c_client = [param.zero_() for param in self.c_client]
+        self.c_global: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
 
     def train(self):
+
         self.model.to(self.device)
         self.model.train()
+
+
+        for i, param in enumerate(self.model.parameters()):
+            self.temp_model_params[i] = param.detach().data
+
+        # for i, c_d in enumerate(self.c_client):
+        #     self.c_global[i] = c_d.clone().detach().data
 
         # reset loss and average gradient
         self.train_loss: float = 0
@@ -154,15 +187,35 @@ class Client:
             for (image, label) in self.trainloader:
                 y = self.model(image.to(self.device))
                 loss = self.loss_fn(y, label.to(self.device))
+
+                if self.train_method == Config.TrainMethod.FEDPROX:
+                    for w_t, w in zip(self.temp_model_params, self.model.parameters()):
+                        loss += 1 / 2. * torch.pow(torch.norm(w.data - w_t.data), 2)
+
                 self.train_loss += loss.item()
 
                 self.optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+
+                if self.train_method == Config.TrainMethod.SCAFFOLD:
+                    for param, c_i, c_g in zip(self.model.parameters(), self.c_client, self.c_global):
+                        param.grad += -c_i + c_g
                 # get gradient 
-                for i, param in enumerate(self.model.parameters()):
-                    self.grad[i] += param.grad.detach().data
-        
+                # for i, param in enumerate(self.model.parameters()):
+                #     self.grad[i] += param.grad.detach().data
+
+                self.optimizer.step()
+
+        # for c_temp, param_c, param_g, c_i, c_g in zip(self.c_temp, self.model.parameters(), self.temp_model_params, self.c_client, self.c_global):
+
+        #     c_temp = c_i - c_g + 1/(self.lr * self.local_epoch_num) * (param_g - param_c)
+
+        if self.train_method == Config.TrainMethod.SCAFFOLD:
+            for i, param_c in enumerate(self.model.parameters()):
+                self.c_delta[i] = -1 * self.c_global[i] + (1/(self.lr * self.local_epoch_num)) * (self.temp_model_params[i] - param_c)
+
+            for i, c_d in enumerate(self.c_delta):
+                self.c_client[i] = self.c_client[i] - c_d
         # for i, param in enumerate(self.model.parameters()):
         #     self.grad[i] /= self.local_epoch_num * len(self.trainset.indices)
         # self.train_loss /= self.local_epoch_num * len(self.trainset.indices)
@@ -172,9 +225,9 @@ class Client:
         self.lr = new_lr
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
-    def calc_training_cost(self, dataset_len: int) -> float:
-        training_cost = 0.00495469 * dataset_len + 0.01023199
-        return training_cost
+    # def calc_training_cost(self, dataset_len: int) -> float:
+    #     training_cost = 0.00495469 * dataset_len + 0.01023199
+    #     return training_cost
 
 class GFL:
     def set_seed(self, seed=None):
@@ -211,8 +264,11 @@ class GFL:
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
         self.subsets_indices = partitioner.get_subsets()
-        partitioner.draw(20,"./pic/dubug.png")
-        self.model, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.device, self.config.batch_size)
+        # partitioner.draw(20,"./pic/dubug.png")
+        # global model, global drift in SCAFFOLD, clients
+        self.model, self.c_global, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.train_method, self.config.device, self.config.batch_size)
+        self.c_global : list[torch.Tensor] = [ param.clone().detach().zero_().to(self.config.device) for param in self.model.parameters()]
+
         self.clients_data_nums = np.sum(self.distributions, axis=1)
         self.clients_weights = self.clients_data_nums / np.sum(self.distributions)
         
@@ -244,6 +300,7 @@ class GFL:
         self.sampling_num = 0
         # may change over iterations
         self.selected_groups: np.ndarray = None
+
 
         self.group()
         pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".png"
@@ -379,12 +436,19 @@ class GFL:
                 for client_index in group:
                     # Raspberry PI 4
                     # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
+                    # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
+                    group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                    if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                        group_coefs = [0.01879308, 0.18775216, 0.19883809]
                     # distance coefficiences: [ 0.00548707  0.0038231  -0.06900253]
+
                     # training coefficiences: [ 0.07093414 -0.00559966]
+                    train_coefs = [ 0.07093414, -0.00559966]
                     # [0.08827506 0.05286743]
-                    training_cost = (0.07093414 * self.clients_data_nums[client_index] -0.00559966) * self.config.local_epoch_num
+                    training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
                     # [ 0.00509987 0.00114916  -0.03624395]
-                    group_overhead = (0.01629675 * (group_size*group_size) - 0.02373668 * group_size + 0.55442565)
+
+                    group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2]) * self.config.group_epoch_num
                     # group_overhead *= 2 // sec agg and backdoor prevention
                     # if len(group) < 5:
                     #     group_overhead = 0
@@ -401,7 +465,7 @@ class GFL:
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
-                __CV_greedy_grouping(server_clients, i, self.config.max_cv, self.config.min_group_size)
+                __CV_greedy_grouping(server_clients, i, self.config.max_group_cv, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
                 __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
@@ -426,9 +490,10 @@ class GFL:
         """
         # distribute
         for group in selected_groups:
-            for clients in self.groups[group]:
+            for client in self.groups[group]:
                 new_sd = copy.deepcopy(self.model.state_dict())
-                self.clients[clients].model.load_state_dict(new_sd)
+                self.clients[client].model.load_state_dict(new_sd)
+                self.clients[client].c_global = [ c_g.clone().detach().data for c_g in self.c_global]
 
     def __calc_probs(self) -> np.ndarray:
         """
@@ -516,10 +581,11 @@ class GFL:
             # init state dict
             client0 = self.clients[self.groups[group_index][0]]
             state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
+            c_group = [ c_g.clone().detach().data for c_g in client0.c_global]
             for key in state_dict_avg.keys():
                 state_dict_avg[key] = 0.0
 
-            # get average state dict
+            # get average state dict and delta drift
             for client_index in self.groups[group_index]:
                 state_dict = self.clients[client_index].model.state_dict()
                 weight = self.clients_data_nums[client_index] / self.groups_data_nums[group_index]
@@ -527,10 +593,21 @@ class GFL:
                 for key in state_dict_avg.keys():
                     state_dict_avg[key] += state_dict[key] * weight
 
+                if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                    # delta drift in SCAFFOLD
+                    for i, c_d in enumerate(c_group):
+                        c_group[i] += self.clients[client_index].c_delta[i] * weight
+
             # update all clients in this group
             for client_index in self.groups[group_index]:
                 new_sd = copy.deepcopy(state_dict_avg)
                 self.clients[client_index].model.load_state_dict(new_sd)
+
+            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                for client_index in self.groups[group_index]:
+                    for i, c_d in enumerate(c_group):
+                        self.clients[client_index].c_global[i] = c_group[i].clone().detach().data
+
 
         for i in range(self.config.group_epoch_num):
             group_train_all_devices(group)
@@ -552,29 +629,43 @@ class GFL:
         # init state dict
         client0 = self.clients[self.groups[selected_groups[0]][0]]
         state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
+        self.c_global = [ c_d.clone().zero_().detach().data for c_d in client0.c_delta]
         for key in state_dict_avg.keys():
             state_dict_avg[key] = 0.0
 
-        # numerical adjustment, make training stable
+
         weights = selected_groups_sizes_by_data / total_data_sum
-        unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
+
+        if self.config.aggregation_option.value >= Config.AggregationOption.UNBIASED.value:
+            unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
         # factor_scale = 10.0
         # unbiased_factor[ unbiased_factor < 1/factor_scale ] = 1/factor_scale
         # unbiased_factor[ unbiased_factor > factor_scale ] = factor_scale
-        unbiased_weights = np.divide(weights, unbiased_factor)
-        unbiased_weights = unbiased_weights / np.sum(unbiased_weights)
-        print(f"weights: {weights[:10]}")
-        print(f"unbiased weights: {unbiased_weights[:10]}")
+            weights = np.divide(weights, unbiased_factor)
+
+            if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
+                # numerical adjustment, make training stable
+                weights = weights / np.sum(weights)
+                # print(f"weights: {weights[:10]}")
+                # print(f"unbiased weights: {weights[:10]}")
 
         # get average state dict
-        for unbiased_weight, group_index in zip(unbiased_weights, selected_groups):
+        for weight, group_index in zip(weights, selected_groups):
             repr_client = self.clients[self.groups[group_index][0]]
             state_dict = repr_client.model.state_dict()
 
             for key in state_dict_avg.keys():
-                state_dict_avg[key] += state_dict[key] * unbiased_weight
+                state_dict_avg[key] += state_dict[key] * weight
+
+            # average delta drift in SCAFFOLD
+            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                # delta drift in SCAFFOLD
+                for i, c_d in enumerate(self.c_global):
+                    self.c_global[i] += repr_client.c_client[i] * weight
+
         
         self.model.load_state_dict(state_dict_avg)
+
 
     def calc_selected_groups_cost(self, selected_groups: 'list[int]'):
         """
@@ -604,17 +695,30 @@ class GFL:
                 print('lr decay to {}'.format(self.clients[0].lr))
 
             selected_groups = self.sample()
+            selected_cost = self.calc_selected_groups_cost(selected_groups)
+
+            # print("costs", self.groups_costs_arr)
+            # print("probs", self.probs_arr)
+            # print("selected", self.selected_groups)
+            group_sizes = [ len(group) for group in self.groups]
+            print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
+            print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
+            data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
+            print('selected data num, cost:', data_selected, selected_cost)
+
+
             self.global_distribute(selected_groups)
             self.global_train(selected_groups)
             self.global_aggregate(selected_groups)
 
-            cur_cost += self.calc_selected_groups_cost(selected_groups)
-
-            print("costs", self.groups_costs_arr)
-            print("probs", self.probs_arr)
-            print("selected", self.selected_groups)
-            data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
-            print(f'selected data num: {data_selected}')
+            # print("costs", self.groups_costs_arr)
+            # print("probs", self.probs_arr)
+            # print("selected", self.selected_groups)
+            # group_sizes = [ len(group) for group in self.groups]
+            # print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
+            # print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
+            # data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
+            cur_cost += selected_cost
 
 
             # test and record
@@ -635,7 +739,8 @@ class GFL:
                 quick_draw(accus, self.config.result_dir + 'accu' + str(self.config.test_mark) + '.png')
                 print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost}')
                 
-
+            if cur_cost > self.config.budget:
+                break
         self.faccu.close()
         self.floss.close()
         self.fcost.close()

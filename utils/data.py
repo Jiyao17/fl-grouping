@@ -113,13 +113,17 @@ class DatasetPartitioner:
         plt.savefig(filename)
         plt.clf()
 
-    def __init__(self, dataset: Dataset, subset_num: int=1000, data_num_range: 'tuple[int]'=(10, 50), alpha: float=0.1):
+    def __init__(self, dataset: Dataset, subset_num: int=1000, 
+        data_num_range: 'tuple[int]'=(10, 50), 
+        alpha_range: 'tuple[float, float]'=(0.05, 0.5)
+        ):
         self.dataset = dataset
         self.subset_num = subset_num
         # range = (min, max)
         self.data_num_range = data_num_range
         self.label_type_num = len(get_targets_set_as_list(dataset))
-        self.alpha = [alpha] * self.label_type_num
+        # self.alpha = [alpha] * self.label_type_num
+        self.alpha_range = alpha_range
 
         self.distributions: np.ndarray = None
         self.cvs: np.ndarray = None
@@ -128,17 +132,34 @@ class DatasetPartitioner:
 
     def get_distributions(self):
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
-        # print("subset_size: ", subsets_sizes[:10])
+        # print("subset_size: ", subsets_sizes[:15])
         # broadcast
         self.subsets_sizes = np.reshape(subsets_sizes, (self.subset_num, 1))
-        subsets_sizes = np.tile(self.subsets_sizes, (1, len(self.alpha)))
+
+        # tile to (subset_num, label_type_num)
+        subsets_sizes = np.tile(self.subsets_sizes, (1, self.label_type_num))
+        # print("shape of subsets_sizes: ", subsets_sizes.shape)
+        probs = np.zeros(shape=(self.subset_num, self.label_type_num), dtype=float)
         # get data sample num from dirichlet distrubution
-        probs = np.random.dirichlet(self.alpha, self.subset_num)
-        # print("probs: ", probs[:10])
+        alphas = []
+        for i in range(self.subset_num):
+            if self.alpha_range[0] == self.alpha_range[1]:
+                alpha = self.alpha_range[0]
+            else:
+                alpha = np.random.uniform(self.alpha_range[0], self.alpha_range[1])
+            alphas.append(alpha)
+            # print("alpha: ", alpha)
+            alpha_list = [alpha] * self.label_type_num
+
+            probs[i] = np.random.dirichlet(alpha_list)
+        # print("alphas: ", alphas[:5])
+        # print("probs: ", probs[:15])
         # broadcast
         distributions: np.ndarray = np.multiply(subsets_sizes, probs)
         distributions.round()
         distributions = distributions.astype(np.int)
+
+        # print("distributions: ", distributions[:5])
 
         self.distributions = distributions
         return distributions
