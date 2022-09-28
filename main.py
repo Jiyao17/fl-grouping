@@ -40,7 +40,7 @@ grouping.local_epoch_num=2
 
 cvg_cvs = copy.deepcopy(grouping)
 cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
-cvg_cvs.selection_mode = Config.SelectionMode.PROB_RCV
+cvg_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
 cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/"
 
 cvg_rs = copy.deepcopy(grouping)
@@ -50,7 +50,7 @@ cvg_rs.result_dir = "./exp_data/grouping/cvg_rs/"
 
 rg_cvs = copy.deepcopy(grouping)
 rg_cvs.grouping_mode = Config.GroupingMode.RANDOM
-rg_cvs.selection_mode = Config.SelectionMode.PROB_RCV
+rg_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
 rg_cvs.result_dir = "./exp_data/grouping/rg_cvs/"
 
 rg_rs = copy.deepcopy(grouping)
@@ -148,11 +148,11 @@ if __name__ == "__main__":
     # config = gs_comp
 
 
-    config = cvg_cvs
-    config.aggregation_option = Config.AggregationOption.WEIGHTED_AVERAGE
+    config = rg_rs
+    # config.aggregation_option = Config.AggregationOption.NUMERICAL_REGULARIZATION
     # config.grouping_mode = Config.GroupingMode.CV_GREEDY
     # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    config.min_group_size = 10
+    config.min_group_size = 5
     config.max_group_cv = 1.0
 
     config.budget = 10**7
@@ -167,8 +167,8 @@ if __name__ == "__main__":
     # 0.05 0.1 0.5 0.01
 
     # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    config.test_mark = "_alpha0.1_cv1.0_5*1"
-    config.comment = "weighted average only"
+    config.test_mark = "_alpha0.1_gs5_5*1"
+    # config.comment = "weighted average only"
     gfl = GFL(config)
     gfl.run()
 

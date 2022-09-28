@@ -448,7 +448,7 @@ class GFL:
                     training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
                     # [ 0.00509987 0.00114916  -0.03624395]
 
-                    group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2]) * self.config.group_epoch_num
+                    group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
                     # group_overhead *= 2 // sec agg and backdoor prevention
                     # if len(group) < 5:
                     #     group_overhead = 0
@@ -636,16 +636,16 @@ class GFL:
 
         weights = selected_groups_sizes_by_data / total_data_sum
 
-        if self.config.aggregation_option.value >= Config.AggregationOption.UNBIASED.value:
-            unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
+        # if self.config.aggregation_option.value >= Config.AggregationOption.UNBIASED.value:
+        unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
         # factor_scale = 10.0
         # unbiased_factor[ unbiased_factor < 1/factor_scale ] = 1/factor_scale
         # unbiased_factor[ unbiased_factor > factor_scale ] = factor_scale
-            weights = np.divide(weights, unbiased_factor)
+        weights = np.divide(weights, unbiased_factor)
 
-            if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
+            # if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
                 # numerical adjustment, make training stable
-                weights = weights / np.sum(weights)
+        weights = weights / np.sum(weights)
                 # print(f"weights: {weights[:10]}")
                 # print(f"unbiased weights: {weights[:10]}")
 

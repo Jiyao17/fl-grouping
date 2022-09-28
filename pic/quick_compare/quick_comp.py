@@ -4,7 +4,7 @@ from scipy.interpolate import make_interp_spline, BSpline
 import numpy as np
 
 root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
-sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 1
+sub_dirs = ["grouping/cvg_cvs/"] * 2 + ["grouping/rg_rs/"] * 2
 # sub_dirs = ["grouping/cvg_cvs/"] * 4
 # sub_dirs = ["grouping/rg_rs/"] * 3 + ["grouping/cvg_cvs/"] * 2
 # sub_dirs = ["debug/", "debug/", "debug/"]
@@ -12,7 +12,7 @@ sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 1
 # marks = ["_fedprox", "_scaffold", "_sgd"]
 # marks = ["_cv05_33", "_cv05_51", "_cv05_52", "_cv10_32", "_cv10_51", "_gs5",]
 # marks = ["_cv01_51", "_cv05_51", "_cv05_52", "_cv05_32", "_cv05_33", "_cv10_51", "_cv10_32",]
-marks = ["_alpha0.1_cv0.1_5*1", "_alpha0.1_cv0.5_5*1", "_alpha0.1_cv1.0_5*1", "_alpha0.1_gs10_5*1", ]
+marks = ["_alpha0.1_cv0.1_5*1", "_alpha0.1_cv1.0_5*1", "_alpha0.1_gs10_5*1", "_alpha0.1_gs5_5*1", ]
 # marks = ["_cv05_53", "_scaffold_53", "_fedprox_53", "_cv05_53", "_cv05_53_cvg_cvs_scaffold", ]
 # marks = ["_gs5", "_gs10", "_gs15", "_gs20"]
 # marks = ["RGRS-51", "RGRS-53", "RGRS-55", "RGRS-510"]
@@ -34,8 +34,8 @@ for sub_dir, mark, label in zip(sub_dirs, marks, labels):
     accu = open(accu_filename, "r").readlines()[-1].strip().split()
     accu = [float(x) for x in accu if x != ""]
 
-    # plt.plot(cost, accu, label=label)
-    plt.plot(range(len(cost)), accu, label=label)
+    plt.plot(cost, accu, label=label)
+    # plt.plot(range(len(cost)), accu, label=label)
 
 
 
