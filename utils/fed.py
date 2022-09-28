@@ -18,7 +18,7 @@ class Config:
 
     class SelectionMode(Enum):
         # prob based, smaller than random
-        PROB_CV = 1
+        PROB_ESRCV = 1
         PROB_WEIGHT = 2
 
         RANDOM = 10
@@ -350,20 +350,36 @@ class GFL:
         def __calc_group_cost(groups: 'list[list[int]]') -> np.ndarray:
             # cost for one group train: local_cost * local epoch num + group aggregate cost * 1
             costs = np.zeros((len(groups),))
+            
             for i, group in enumerate(groups):
-                training_cost = 0
-                for client_index in group:
-                    # [0.08827506 0.05286743]
-                    training_cost += (0.08827506 * self.clients_data_nums[client_index] + 0.05286743) * self.config.local_epoch_num
-
+                group_cost_one_round = 0
+                
                 group_size = len(group)
-                # [ 0.00509987 0.00114916  -0.03624395]
-                group_overhead = (0.00509987 * group_size**2 + 0.00114916 * group_size - 0.03624395)
+                for client_index in group:
+                    # Raspberry PI 4
+                    # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
+                    # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
+                    group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                    # if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                    #     group_coefs = [0.01879308, 0.18775216, 0.19883809]
+                    # distance coefficiences: [ 0.00548707  0.0038231  -0.06900253]
 
-                if len(group) < 5:
-                    group_overhead = 0
-                costs[i] = training_cost + group_overhead
+                    # training coefficiences: [ 0.07093414 -0.00559966]
+                    train_coefs = [ 0.07093414, -0.00559966]
+                    # [0.08827506 0.05286743]
+                    training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
+                    # [ 0.00509987 0.00114916  -0.03624395]
 
+                    group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
+                    # group_overhead *= 2 // sec agg and backdoor prevention
+                    # if len(group) < 5:
+                    #     group_overhead = 0
+
+                    client_cost = (training_cost + group_overhead)
+                    group_cost_one_round += client_cost
+                
+                costs[i] = group_cost_one_round * self.config.group_epoch_num
+            
             return costs
 
         self.groups = []
@@ -427,7 +443,7 @@ class GFL:
         if self.config.selection_mode.value <= Config.SelectionMode.RANDOM.value:
             probs = self.__calc_probs()
             pc = probs.copy()
-            np.multiply(probs, self.groups_data_nums_arr, out=pc) # weighted average
+            np.multiply(probs, self.groups_data_nums_arr, out=pc) # weighted average group data num
             weighted_avg = np.sum(pc)
             indices = range(len(self.groups))
             sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / weighted_avg)
@@ -521,7 +537,7 @@ class GFL:
         """
         cost = 0
         for group_index in selected_groups:
-            cost += self.groups_costs_arr[group_index] * self.config.group_epoch_num
+            cost += self.groups_costs_arr[group_index]
         return cost
 
     def run(self):
@@ -543,6 +559,15 @@ class GFL:
                 print('lr decay to {}'.format(self.clients[0].lr))
 
             selected_groups = self.sample()
+            selected_cost = self.calc_selected_groups_cost(selected_groups)
+
+            group_sizes = [ len(group) for group in self.groups]
+            print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
+            print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
+            data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
+            print('selected data num, cost:', data_selected, selected_cost)
+            print('selected groups:', selected_groups)
+
             self.global_distribute(selected_groups)
             self.global_train(selected_groups)
             self.global_aggregate(selected_groups)

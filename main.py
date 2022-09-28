@@ -10,7 +10,7 @@ from utils.data import TaskName
 
 base_config = Config(
     task_name=TaskName.CIFAR,
-    server_num=10, client_num=1000, data_num_range=(10, 50), alpha=0.1,
+    server_num=10, client_num=1000, data_num_range=(10, 51), alpha=0.1,
     sampling_frac=0.2,
     global_epoch_num=300, 
     # the following line may vary
@@ -91,8 +91,10 @@ if __name__ == "__main__":
     #     torch.cuda.manual_seed(seed)
 
     config = rg_rs
-    config.min_group_size = 30
-    config.test_mark = "gs30"
+    config.max_cv = 0.5
+    config.min_group_size = 5
+    # config.test_mark = "a0.1_cv0.1_5*1"
+    config.test_mark = "a0.1_gs5_5*1"
     config.comment = ""
     gfl = GFL(config)
     gfl.run()
