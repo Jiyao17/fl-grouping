@@ -44,7 +44,6 @@ class Config:
     class AggregationOption(Enum):
         WEIGHTED_AVERAGE = 1
         UNBIASED = 2
-        NUMERICAL_REGULARIZATION = 3
 
     def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
@@ -355,11 +354,11 @@ class GFL:
                 cur_min_cv = self.__calc_group_cv([server_clients[0]])
                 new_group: 'list[int]' = [server_clients[0]]
                 # greedy for the first client
-                for client in server_clients:
-                    cv = self.__calc_group_cv([client])
-                    if cv < cur_min_cv:
-                        cur_min_cv = cv
-                        new_group = [client]
+                # for client in server_clients:
+                #     cv = self.__calc_group_cv([client])
+                #     if cv < cur_min_cv:
+                #         cur_min_cv = cv
+                #         new_group = [client]
                 server_clients.remove(new_group[0])
 
                 # try to add more clients to the group
@@ -434,24 +433,24 @@ class GFL:
                 
                 group_size = len(group)
                 for client_index in group:
-                    # Raspberry PI 4
+                    # data from Raspberry PI 4
                     # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
+                    # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
                     # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
+                    # fedprox coefs: [0.06719291 0.14201339]
+
+                    # secagg coeffs
                     group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                    # regular train coeffs
+                    train_coefs = [ 0.07093414, -0.00559966]
+
                     if self.config.train_method == Config.TrainMethod.SCAFFOLD:
                         group_coefs = [0.01879308, 0.18775216, 0.19883809]
-                    # distance coefficiences: [ 0.00548707  0.0038231  -0.06900253]
+                    if self.config.train_method == Config.TrainMethod.FEDPROX:
+                        train_coefs = [0.06719291, 0.14201339]
 
-                    # training coefficiences: [ 0.07093414 -0.00559966]
-                    train_coefs = [ 0.07093414, -0.00559966]
-                    # [0.08827506 0.05286743]
                     training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
-                    # [ 0.00509987 0.00114916  -0.03624395]
-
                     group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
-                    # group_overhead *= 2 // sec agg and backdoor prevention
-                    # if len(group) < 5:
-                    #     group_overhead = 0
 
                     client_cost = (training_cost + group_overhead) * self.config.group_epoch_num
                     group_cost += client_cost
@@ -634,19 +633,22 @@ class GFL:
             state_dict_avg[key] = 0.0
 
 
-        weights = selected_groups_sizes_by_data / total_data_sum
+        weights = selected_groups_sizes_by_data / selected_groups_data_sum
 
-        # if self.config.aggregation_option.value >= Config.AggregationOption.UNBIASED.value:
-        unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
+        if self.config.aggregation_option == Config.AggregationOption.UNBIASED:
+            weights = selected_groups_sizes_by_data / total_data_sum
+
+            unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
         # factor_scale = 10.0
         # unbiased_factor[ unbiased_factor < 1/factor_scale ] = 1/factor_scale
         # unbiased_factor[ unbiased_factor > factor_scale ] = factor_scale
-        weights = np.divide(weights, unbiased_factor)
+            weights = np.divide(weights, unbiased_factor)
 
             # if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
                 # numerical adjustment, make training stable
-        weights = weights / np.sum(weights)
-                # print(f"weights: {weights[:10]}")
+            weights = weights / np.sum(weights)
+        
+        print(f"weights: {weights}")
                 # print(f"unbiased weights: {weights[:10]}")
 
         # get average state dict
@@ -697,9 +699,12 @@ class GFL:
             selected_groups = self.sample()
             selected_cost = self.calc_selected_groups_cost(selected_groups)
 
-            # print("costs", self.groups_costs_arr)
-            # print("probs", self.probs_arr)
-            # print("selected", self.selected_groups)
+            # show_data_len = 10
+            # if len(self.groups) < show_data_len:
+            #     show_data_len = len(self.groups)
+            print("costs", self.groups_costs_arr)
+            print("probs", self.probs_arr)
+            print("selected groups", self.selected_groups)
             group_sizes = [ len(group) for group in self.groups]
             print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
             print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))

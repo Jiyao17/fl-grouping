@@ -10,21 +10,22 @@ from utils.data import TaskName
 
 base_config = Config(
     task_name=TaskName.CIFAR,
-    server_num=10, client_num=1000, data_num_range=(10, 51), alpha=(0.1, 0.1),
-    sampling_frac=0.2, budget=10**7,
-    global_epoch_num=500,
+    server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
+    sampling_frac=0.2, budget=10**8,
+    global_epoch_num=1000,
     # the following line may vary
-    group_epoch_num=5, local_epoch_num=1,
+    group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
     log_interval=5, 
     # the following two lines may vary
-    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
+    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.5, min_group_size=10,
     selection_mode=Config.SelectionMode.RANDOM,
+    aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
     device="cuda",
     train_method=Config.TrainMethod.SGD,
     data_path="./data/", 
     # the following 2 lines may vary
-    result_dir="",
+    result_dir="./exp_data/grouping/rg_rs/", 
     test_mark="",
     comment="",
 )
@@ -122,7 +123,7 @@ gs_comp = Config(
     # the following two lines may vary
     grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
     selection_mode=Config.SelectionMode.RANDOM,
-    aggregation_option=Config.AggregationOption.NUMERICAL_REGULARIZATION,
+    aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
     device="cuda",
     data_path="./data/", 
     # the following 2 lines may vary
@@ -131,6 +132,40 @@ gs_comp = Config(
     comment="",
 
 )
+
+
+comp_base = copy.deepcopy(base_config)
+comp_base.server_num = 3
+comp_base.client_num = 300
+comp_base.alpha = (0.1, 0.1)
+comp_base.max_group_cv = 0.5
+comp_base.min_group_size = 5
+comp_base.data_num_range = (20, 201)
+comp_base.group_epoch_num = 10
+comp_base.local_epoch_num = 5
+comp_base.log_interval = 1
+
+
+FedProx = copy.deepcopy(comp_base)
+FedProx.train_method = Config.TrainMethod.FEDPROX
+FedProx.result_dir = "./exp_data/grouping/rg_rs/fedprox/"
+
+scaffold = copy.deepcopy(comp_base)
+scaffold.train_method = Config.TrainMethod.SCAFFOLD
+scaffold.result_dir = "./exp_data/grouping/rg_rs/scaffold/"
+
+comp_cvg_cvs = copy.deepcopy(comp_base)
+comp_cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
+comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_SRCV
+comp_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/"
+
+scaffold_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
+scaffold_cvg_cvs.train_method = Config.TrainMethod.SCAFFOLD
+scaffold_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/scaffold/"
+
+fedprox_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
+fedprox_cvg_cvs.train_method = Config.TrainMethod.FEDPROX
+fedprox_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/fedprox/"
 
 
 
@@ -148,26 +183,40 @@ if __name__ == "__main__":
     # config = gs_comp
 
 
-    config = rg_rs
+    config = scaffold_cvg_cvs
+
+    # config.alpha = (0.1, 0.1)
+    # config.server_num = 1
+    # config.client_num = 100
+    # config.data_num_range = (20, 101)
     # config.aggregation_option = Config.AggregationOption.NUMERICAL_REGULARIZATION
     # config.grouping_mode = Config.GroupingMode.CV_GREEDY
-    # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    config.min_group_size = 5
-    config.max_group_cv = 1.0
+    # config.selection_mode = Config.SelectionMode.PROB_ESRCV
 
-    config.budget = 10**7
-    config.train_method = Config.TrainMethod.SGD
-    config.log_interval = 5
+    # config.min_group_size = 20
+    # config.max_group_cv = 1.0
+    # config.group_epoch_num = 5
+    # config.local_epoch_num = 2
 
-    config.group_epoch_num = 5
-    config.local_epoch_num = 1
-    config.alpha = (0.1, 0.1)
+    # config.budget = 10**8
+    # config.train_method = Config.TrainMethod.SGD
+    # config.log_interval = 5
+
+
 
 
     # 0.05 0.1 0.5 0.01
 
     # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    config.test_mark = "_alpha0.1_gs5_5*1"
+    # config.test_mark = "_alpha0.1_cv1.0_5*1"
+
+    cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
+        + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
+    rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
+        + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
+    
+    config.test_mark = cvg_cvs_mark_base
+    # config.test_mark = rg_rs_mark_base
     # config.comment = "weighted average only"
     gfl = GFL(config)
     gfl.run()
