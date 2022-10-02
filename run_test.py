@@ -1,13 +1,14 @@
 
+
 import torch
 
 import numpy as np
 import random
 import copy
-from multiprocessing import Process
 
 from utils.fed import GFL, Config
 from utils.data import TaskName
+
 
 base_config = Config(
     task_name=TaskName.CIFAR,
@@ -143,7 +144,7 @@ comp_base.max_group_cv = 0.5
 comp_base.min_group_size = 5
 comp_base.data_num_range = (20, 201)
 comp_base.group_epoch_num = 10
-comp_base.local_epoch_num = 5
+comp_base.local_epoch_num = 2
 comp_base.log_interval = 1
 comp_base.budget = 1.1e6
 
@@ -169,75 +170,11 @@ fedprox_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
 fedprox_cvg_cvs.train_method = Config.TrainMethod.FEDPROX
 fedprox_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/fedprox/"
 
-def process_run(config: Config, CUDA):
-    config.device = "cuda:" + str(CUDA) if CUDA >= 0 else "cpu"
-    gfl = GFL(config)
-    gfl.run()
-
-    
-
-if __name__ == "__main__":
-
-    # data_partition_seed = 0
-    # seed = data_partition_seed
-    # if seed is not None:
-    #     random.seed(seed)
-    #     np.random.seed(seed)
-    #     torch.manual_seed(seed)
-    #     torch.cuda.manual_seed(seed)
-    # gs_comp.min_group_size = 50
-    # gs_comp.test_mark = "_gs50"
-    # config = gs_comp
-    CUDAS = [1, 2, 3, 4]
-    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, scaffold_cvg_cvs, fedprox_cvg_cvs]
-
-    for i, config in enumerate(configs):
-        cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
-            + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
-            + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        if i < 3:
-            config.test_mark = rg_rs_mark_base
-        else:
-            config.test_mark = cvg_cvs_mark_base
-
-        p = Process(target=process_run, args=(config, CUDAS[i/2 + 1]))
-        p.start()
-        p.join()
+CUDAS = [1, 2, 3, 4]
+configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, scaffold_cvg_cvs, fedprox_cvg_cvs]
 
 
-    
-
-    # config.alpha = (0.1, 0.1)
-    # config.server_num = 1
-    # config.client_num = 100
-    # config.data_num_range = (20, 101)
-    # config.aggregation_option = Config.AggregationOption.NUMERICAL_REGULARIZATION
-    # config.grouping_mode = Config.GroupingMode.CV_GREEDY
-    # config.selection_mode = Config.SelectionMode.PROB_ESRCV
-
-    # config.min_group_size = 20
-    # config.max_group_cv = 1.0
-    # config.group_epoch_num = 10
-    # config.local_epoch_num = 2
-
-    # config.budget = 10**8
-    # config.train_method = Config.TrainMethod.SGD
-    # config.log_interval = 5
-
-
-
-
-    # 0.05 0.1 0.5 0.01
-
-    # config.selection_mode = Config.SelectionMode.PROB_RCV_COST
-    # config.test_mark = "_alpha0.1_cv1.0_5*1"
-
-    # config.test_mark = rg_rs_mark_base
-    # config.comment = "weighted average only"
-
-
-
-
-
-
+def process_run(config, CUDA_VISIBLE_DEVICES):
+    cmd = f"CUDA_VISIBLE_DEVICES={CUDA_VISIBLE_DEVICES} python3 main.py --config {config}"
+    print(cmd)
+    os.system(cmd)

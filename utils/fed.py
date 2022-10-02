@@ -446,6 +446,7 @@ class GFL:
 
                     if self.config.train_method == Config.TrainMethod.SCAFFOLD:
                         group_coefs = [0.01879308, 0.18775216, 0.19883809]
+                        train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
                     if self.config.train_method == Config.TrainMethod.FEDPROX:
                         train_coefs = [0.06719291, 0.14201339]
 

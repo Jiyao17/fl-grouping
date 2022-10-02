@@ -28,7 +28,7 @@ sub_dirs = ["grouping/cvg_cvs/"] * 3
 # marks = ["_cv01_51", "_cv05_51", "_cv05_52", "_cv05_32", "_cv05_33", "_cv10_51", "_cv10_32",]
 # marks = ["_alpha0.1_cv0.1_5*2", "_alpha0.1_cv0.5_5*2", "_alpha0.1_cv1.0_5*2"]
 # marks = ["_alpha0.5_cv0.1_5*2", "_alpha0.5_cv0.5_5*2", "_alpha0.5_cv1.0_5*2"]
-marks = ["_alpha1_cv0.1_5*2", "_alpha1_cv0.5_5*2", "_alpha1_cv1.0_5*2"]
+marks = ["_alpha0.5_cv0.1_5*2", "_alpha0.5_cv0.5_5*2", "_alpha0.5_cv1.0_5*2"]
 
 # marks = ["_cv05_53", "_scaffold_53", "_fedprox_53", "_cv05_53", "_cv05_53_cvg_cvs_scaffold", ]
 # marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs10_5*2", "_alpha0.1_gs20_5*2", "_alpha0.1_gs40_5*2", ]
@@ -62,13 +62,13 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
             break
     print(label)
     print(max_accu)
-    plt.plot(cost, accu, label=label)
-    # plt.plot(range(len(cost)), accu, label=label)
+    # plt.plot(cost, accu, label=label)
+    plt.plot(range(len(cost)), accu, label=label)
 # 
 
 
 # max_cost = 2000000
-# plt.xlim(0, 40)
+# plt.xlim(0, 100)
 # plt.ylim(0.15, 0.4)
 
     # 300 represents number of points to make between T.min and T.max

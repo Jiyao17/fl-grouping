@@ -1,7 +1,9 @@
 
 import matplotlib.pyplot as plt
+from pyparsing import line
 from scipy.interpolate import make_interp_spline, BSpline
 import numpy as np
+from copy import deepcopy
 
 colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
 (1.0, 0.4980392156862745, 0.054901960784313725), # orange
@@ -28,8 +30,16 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # marks = ["_fedprox", "_scaffold", "_sgd"]
 # marks = ["_cv05_33", "_cv05_51", "_cv05_52", "_cv10_32", "_cv10_51", "_gs5",]
 # marks = ["_cv01_51", "_cv05_51", "_cv05_52", "_cv05_32", "_cv05_33", "_cv10_51", "_cv10_32",]
+
+# full comp, FedAvg, FedProx, Scaffold, CVG, CVG-FedProx, CVG-Scaffold
+# alpha=0.1 min_gs=5 max_cv=0.5 10*5
+sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
+    + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
 marks = ["_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5" ] \
     + ["_alpha0.1_cv0.5_10*5", "_alpha0.1_cv0.5_10*5", "_alpha0.1_cv0.5_10*5"] 
+fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "CVG", "CVG+FedProx", "CVG+SCAFFOLD"]
+
+
 # marks = ["_alpha0.1_gs10_5*2", "_alpha0.1_gs10_5*2", "_alpha0.1_gs10_5*2",] \
 #     + ["_alpha0.1_cv0.5_5*2", "_alpha0.1_cv0.5_5*2", "_alpha0.1_cv0.5_5*2",] 
 
@@ -42,41 +52,105 @@ marks = ["_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5" ] \
 # exp_labels = [ mark[1:].replace("_", " ") for mark in marks]
 # labels = ["GS=5", "GS=10", "GS=15", "GS=20"]
 # labels = ["RG-RS51", "RG-RS32", "CVG-CVS32", "CVG-CVS51", "FedAvg15"]
-colors = [ "black", "red", "blue", "green" ]
+# colors = [ "black", "red", "blue", "green" ]
 # fig_labels = ["Max CoV=0.1", "Max CoV=0.5", "Max CoV=1.0"]
-fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "CVG", "CVG+FedProx", "CVG+SCAFFOLD"]
+line_styles = ["--", "--", "--", "-", "-", "-"]
+colors = [colors[0], colors[1], colors[2], colors[0], colors[1], colors[2]]
+# colors = ['red', 'blue', 'green', 'red', 'blue', 'green']
 
-lines = []
-for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
-    cost_filename = root_data_dir + sub_dir + "cost" + mark
-    accu_filename = root_data_dir + sub_dir + "accu" + mark
+reverse = 1
+test_num = 1
 
-    cost = open(cost_filename, "r").readlines()[-1].strip().split()
-    if cost[0] != "" and cost[0][0] == "c":
-        continue
-    cost = [float(x) for x in cost if x != ""]
-    accu = open(accu_filename, "r").readlines()[-1].strip().split()
-    accu = [float(x) for x in accu if x != ""]
+if reverse:
+    lines = []
+    for sub_dir, mark, label, line_style, color in zip(sub_dirs, marks, fig_labels, line_styles, colors):
+        cost_filename = root_data_dir + sub_dir + "cost" + mark
+        accu_filename = root_data_dir + sub_dir + "accu" + mark
+        cost = open(cost_filename, "r").readlines()[-1 - (test_num-1)*2].strip().split()
+        # if cost[0] != "" and cost[0][0] == "c":
+        #     continue
+        cost = [float(x) for x in cost if x != ""]
+        accu = open(accu_filename, "r").readlines()[-1 - (test_num-1)*2].strip().split()
+        accu = [float(x) for x in accu if x != ""]
 
-    min_dif = 1e9
-    index = 0
-    max_accu = 0
-    for i, c in enumerate(cost):
-        if c <= 1e6:
-            if accu[i] > max_accu:
-                max_accu = accu[i]
-        else:
-            break
-    print(label)
-    print(max_accu)
-    # plt.plot(cost, accu, label=label)
-    plt.plot(range(len(cost)), accu, label=label)
-# 
+        avg_cost = deepcopy(cost)
+        avg_accu = deepcopy(accu)
+        for i in range(test_num - 1, 0, -1):
+            cost = open(cost_filename, "r").readlines()[-1 - (i-1)*2].strip().split()
+            cost = [float(x) for x in cost if x != ""]
+            if len(cost) < len(avg_cost):
+                cost.extend(avg_cost[len(cost):])
+            accu = open(accu_filename, "r").readlines()[-1 - (i-1)*2].strip().split()
+            accu = [float(x) for x in accu if x != ""]
+            if len(accu) < len(avg_accu):
+                accu.extend(avg_accu[len(accu):])
+
+            avg_cost = [ (avg_cost[j] * i + cost[j]) / (i + 1) for j in range(len(avg_cost)) ]
+            avg_accu = [ (avg_accu[j] * i + accu[j]) / (i + 1) for j in range(len(avg_accu)) ]
+
+
+
+        min_dif = 1e9
+        index = 0
+        max_accu = 0
+        for i, c in enumerate(avg_cost):
+            if c <= 1e6:
+                if avg_accu[i] > max_accu:
+                    max_accu = avg_accu[i]
+            else:
+                break
+        print(label)
+        print(max_accu)
+        plt.plot(avg_cost, avg_accu, label=label, linestyle=line_style, color=color)
+        # plt.plot(range(len(avg_cost)), avg_accu, label=label, linestyle=line_style, color=color)
+else:
+    lines = []
+    for sub_dir, mark, label, line_style, color in zip(sub_dirs, marks, fig_labels, line_styles, colors):
+        cost_filename = root_data_dir + sub_dir + "cost" + mark
+        accu_filename = root_data_dir + sub_dir + "accu" + mark
+        cost = open(cost_filename, "r").readlines()[-1].strip().split()
+        # if cost[0] != "" and cost[0][0] == "c":
+        #     continue
+        cost = [float(x) for x in cost if x != ""]
+        accu = open(accu_filename, "r").readlines()[-1].strip().split()
+        accu = [float(x) for x in accu if x != ""]
+
+        avg_cost = deepcopy(cost)
+        avg_accu = deepcopy(accu)
+        for i in range(1, test_num, 1):
+            cost = open(cost_filename, "r").readlines()[-1 - i*2].strip().split()
+            cost = [float(x) for x in cost if x != ""]
+            if len(cost) < len(avg_cost):
+                cost.extend(avg_cost[len(cost):])
+            accu = open(accu_filename, "r").readlines()[-1 - i*2].strip().split()
+            accu = [float(x) for x in accu if x != ""]
+            if len(accu) < len(avg_accu):
+                accu.extend(avg_accu[len(accu):])
+
+            avg_cost = [ (avg_cost[j] * i + cost[j]) / (i + 1) for j in range(len(avg_cost)) ]
+            avg_accu = [ (avg_accu[j] * i + accu[j]) / (i + 1) for j in range(len(avg_accu)) ]
+
+
+
+        min_dif = 1e9
+        index = 0
+        max_accu = 0
+        for i, c in enumerate(avg_cost):
+            if c <= 1e6:
+                if avg_accu[i] > max_accu:
+                    max_accu = avg_accu[i]
+            else:
+                break
+        print(label)
+        print(max_accu)
+        plt.plot(avg_cost, avg_accu, label=label, linestyle=line_style, color=color)
+        # plt.plot(range(len(avg_cost)), avg_accu, label=label, linestyle=line_style, color=color)
+
 
 
 # max_cost = 2000000
-# plt.xlim(0, 40)
-# plt.ylim(0.15, 0.4)
+plt.xlim(0, 1e6)
+plt.ylim(0.10, 0.6)
 
     # 300 represents number of points to make between T.min and T.max
     # cost_new = np.linspace(0, max_cost, 10000) 
@@ -99,8 +173,8 @@ plt.ylabel('Global Round', fontsize=24)
 plt.subplots_adjust(0.20, 0.18, 0.96, 0.96)
 
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-plt.xticks(fontsize=24)
-plt.yticks(fontsize=24)
+# plt.xticks(fontsize=24)
+# plt.yticks(fontsize=24)
 plt.grid(True)
 plt.legend()
 
