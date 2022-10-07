@@ -35,8 +35,11 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # alpha=0.1 min_gs=5 max_cv=0.5 10*5
 sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
-marks = ["_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*5" ] \
-    + ["_alpha0.1_cv0.5_10*5", "_alpha0.1_cv0.5_10*5", "_alpha0.1_cv0.5_10*5"] 
+marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_10*2" ] \
+    + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_10*2"] 
+# marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2" ] \
+#     + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
+
 fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "CVG", "CVG+FedProx", "CVG+SCAFFOLD"]
 
 
@@ -67,8 +70,8 @@ if reverse:
         cost_filename = root_data_dir + sub_dir + "cost" + mark
         accu_filename = root_data_dir + sub_dir + "accu" + mark
         cost = open(cost_filename, "r").readlines()[-1 - (test_num-1)*2].strip().split()
-        # if cost[0] != "" and cost[0][0] == "c":
-        #     continue
+        if cost[0] != "" and cost[0][0] == "c":
+            continue
         cost = [float(x) for x in cost if x != ""]
         accu = open(accu_filename, "r").readlines()[-1 - (test_num-1)*2].strip().split()
         accu = [float(x) for x in accu if x != ""]
@@ -100,7 +103,8 @@ if reverse:
             else:
                 break
         print(label)
-        print(max_accu)
+        print("Avg. last 10 accu", np.mean(avg_accu[-10:]))
+
         plt.plot(avg_cost, avg_accu, label=label, linestyle=line_style, color=color)
         # plt.plot(range(len(avg_cost)), avg_accu, label=label, linestyle=line_style, color=color)
 else:
@@ -150,7 +154,7 @@ else:
 
 # max_cost = 2000000
 plt.xlim(0, 1e6)
-plt.ylim(0.10, 0.6)
+# plt.ylim(0.10, 0.6)
 
     # 300 represents number of points to make between T.min and T.max
     # cost_new = np.linspace(0, max_cost, 10000) 
@@ -173,8 +177,8 @@ plt.ylabel('Global Round', fontsize=24)
 plt.subplots_adjust(0.20, 0.18, 0.96, 0.96)
 
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-# plt.xticks(fontsize=24)
-# plt.yticks(fontsize=24)
+plt.xticks(fontsize=24)
+plt.yticks(fontsize=24)
 plt.grid(True)
 plt.legend()
 

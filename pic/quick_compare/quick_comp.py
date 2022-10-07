@@ -16,7 +16,10 @@ colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
 ]
 
 root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
-sub_dirs = ["grouping/cvg_cvs/"] * 2 + ["grouping/rg_rs/"] * 2
+# sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 3
+sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
+    + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
+
 # sub_dirs = ["grouping/cvg_cvs/"] * 3
 # sub_dirs = ["grouping/rg_rs/"] * 4
 # sub_dirs = ["grouping/rg_cvs/"] * 4
@@ -30,18 +33,34 @@ sub_dirs = ["grouping/cvg_cvs/"] * 2 + ["grouping/rg_rs/"] * 2
 # marks = ["_cv05_53", "_scaffold_53", "_fedprox_53", "_cv05_53", "_cv05_53_cvg_cvs_scaffold", ]
 # marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs10_5*2", "_alpha0.1_gs15_5*2", "_alpha0.1_gs20_5*2", ]
 # GS comp
+# marks = ["_alpha0.1_cv0.5_10*2", "_alpha0.1_cv0.5_10*5"]
 # marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs10_5*2", "_alpha0.1_gs20_5*2", ]
 
-marks = ["_alpha0.1_cv0.5_10*2", "_alpha0.1_cv0.5_5*2", "_alpha0.1_gs5_10*2", "_alpha0.1_gs5_5*2"]
-fig_labels = ["CVG-SRCV 10*2", "CVG-SRCV 5*2", "RGRS GS=5 10*2",  "RGRS GS=5 5*2"]
+# marks = ["_alpha0.1_cv0.5_5*2", "_alpha0.1_cv0.5_5*5", "_alpha0.1_cv0.5_5*10", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*5", "_alpha0.1_gs5_5*10", ]
+# fig_labels = ["CVG-SRCV 5*2", "CVG-SRCV 5*5", "CVG-SRCV 5*10", "RG-RG 5*2", "RG-RG 5*5", "RG-RG 5*10", ]
+# marks = ["_alpha0.1_cv0.5_10*2", "_alpha0.1_cv0.5_10*5", "_alpha0.1_cv0.5_10*10", "_alpha0.1_gs5_10*2", "_alpha0.1_gs5_10*5", "_alpha0.1_gs5_10*10", ]
+# fig_labels = ["CVG-SRCV 10*2", "CVG-SRCV 10*5", "CVG-SRCV 10*10", "RG-RG 10*2", "RG-RG 10*5", "RG-RG 10*10", ]
 
-# 
+# marks = ["_alpha0.1_cv0.5_20*2", "_alpha0.1_cv0.5_20*5", "_alpha0.1_cv0.5_20*10", "_alpha0.1_gs5_20*2", "_alpha0.1_gs5_20*5", "_alpha0.1_gs5_20*10", ]
+# fig_labels = ["CVG-SRCV 20*2", "CVG-SRCV 20*5", "CVG-SRCV 20*10", "RG-RG 20*2", "RG-RG 20*5", "RG-RG 20*10", ]
+
+# comp_CV
+# marks = ["_alpha0.1_cv0.1_5*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs10_10*2" ]
+# fig_labels = ["CVG GS=5 5*2", "CVG GS=10 10*2", "RG GS=5 5*2", "RG GS=10 10*2", ]
+# observe_CV
+# sub_dirs = ["grouping/cvg_cvs/"] * 3
+# marks = ["_alpha0.1_cv0.1_10*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_cv1.0_10*2", ]
+# fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
+# comp audio
+marks = ["_sc_alpha0.1_gs5_5*2" ] * 3 + ["_sc_alpha0.1_cv1.5_5*2", ] * 3
+fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
+
 #  marks = ["RGRS-51", "RGRS-53", "RGRS-55", "RGRS-510"]
-exp_labels = [ mark[1:].replace("_", " ") for mark in marks]
+# fig_labels = [ mark[1:].replace("_", " ") for mark in marks]
 # labels = ["GS=5", "GS=10", "GS=15", "GS=20"]
 # labels = ["RG-RS51", "RG-RS32", "CVG-CVS32", "CVG-CVS51", "FedAvg15"]
 colors = [ "black", "red", "blue", "green" ]
-# fig_labels = ["GS=5", "GS=10", "GS=15", "GS=20"]
+# fig_labels = ["GS=5", "GS=10", "GS=20"]
 # fig_labels = ["CVG-SRCV", "RGRS GS=5"]
 
 
@@ -66,11 +85,14 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
     # plt.plot(cost, accu, label=label)
     plt.plot(range(len(cost)), accu,  label=label)
 
+    print(label)
+    print("Avg last 3 accu:", sum(accu[-3:]) / 3)
+
 
 
 # max_cost = 2000000
-plt.xlim(0, 100)
-plt.ylim(0.15, 0.6)
+# plt.xlim(0, 20)
+# plt.ylim(0.15, 0.6)
 
     # 300 represents number of points to make between T.min and T.max
     # cost_new = np.linspace(0, max_cost, 10000) 

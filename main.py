@@ -94,21 +94,21 @@ var_30_30.test_mark = "_30-30"
 
 
 debug = Config(
-    task_name=TaskName.CIFAR,
+    task_name=TaskName.SPEECHCOMMAND,
     train_method=Config.TrainMethod.SGD,
-    server_num=3, client_num=600, data_num_range=(10, 101), alpha=(0.1, 0.1),
+    server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**7,
-    global_epoch_num=500, group_epoch_num=10, local_epoch_num=2,
+    global_epoch_num=100, group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
     log_interval=1, 
     # alpha=0.1: sigma = 
-    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=0.1, min_group_size=10,
+    grouping_mode=Config.GroupingMode.CV_GREEDY, max_group_cv=1, min_group_size=5,
     # partition_mode=Config.PartitionMode.IID,
-    selection_mode=Config.SelectionMode.RANDOM,
+    selection_mode=Config.SelectionMode.PROB_SRCV,
     device="cuda",
     data_path="./data/", 
     result_dir="./exp_data/debug/",
-    test_mark="_sgd",
+    test_mark="_sc",
     comment="",
 )
 
@@ -139,11 +139,11 @@ comp_base = copy.deepcopy(base_config)
 comp_base.server_num = 3
 comp_base.client_num = 300
 comp_base.alpha = (0.1, 0.1)
-comp_base.max_group_cv = 0.5
+comp_base.max_group_cv = 1.0
 comp_base.min_group_size = 5
 comp_base.data_num_range = (20, 201)
 comp_base.group_epoch_num = 10
-comp_base.local_epoch_num = 5
+comp_base.local_epoch_num = 2
 comp_base.log_interval = 1
 comp_base.budget = 1.1e6
 
@@ -169,14 +169,31 @@ fedprox_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
 fedprox_cvg_cvs.train_method = Config.TrainMethod.FEDPROX
 fedprox_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/fedprox/"
 
-def process_run(config: Config, CUDA):
-    config.device = "cuda:" + str(CUDA) if CUDA >= 0 else "cpu"
+audio_configs = [comp_base, scaffold, FedProx, comp_cvg_cvs, scaffold_cvg_cvs, fedprox_cvg_cvs]
+for i, config in enumerate(audio_configs):
+    audio_configs[i] = copy.deepcopy(config)
+    audio_configs[i].task_name = TaskName.SPEECHCOMMAND
+    # cv=1.0 gs=5
+    # 0.5 10
+    audio_configs[i].alpha = (0.1, 0.1)
+    audio_configs[i].max_group_cv = 1.5
+    audio_configs[i].min_group_size = 5
+    audio_configs[i].lr = 0.01
+    audio_configs[i].lr_interval = 20
+
+    audio_configs[i].test_mark = "_sc"
+
+def process_run(config: Config):
     gfl = GFL(config)
     gfl.run()
 
     
 
 if __name__ == "__main__":
+    # gfl = GFL(debug)
+    # gfl.run()
+
+    # exit()
 
     # data_partition_seed = 0
     # seed = data_partition_seed
@@ -188,22 +205,38 @@ if __name__ == "__main__":
     # gs_comp.min_group_size = 50
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
-    CUDAS = [1, 2, 3, 4]
-    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, scaffold_cvg_cvs, fedprox_cvg_cvs]
+    CUDAS = [2, 4, 6]
+    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs,]
+    # configs = [configs[0], configs[3]]
+    # configs = [configs[1], configs[4]]
+    # configs = [configs[2], configs[5]]
 
+
+    # configs = [audio_configs[0], audio_configs[3]]
+    # configs = [audio_configs[1], audio_configs[4]]
+    configs = [audio_configs[2], audio_configs[5]]
+
+
+
+    task_counter = 0
     for i, config in enumerate(configs):
+
+        config.group_epoch_num = 5
+        config.local_epoch_num = 2
+        config.log_interval = 5
+        
         cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
         rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        if i < 3:
-            config.test_mark = rg_rs_mark_base
+        if i < 1:
+            config.test_mark += rg_rs_mark_base
         else:
-            config.test_mark = cvg_cvs_mark_base
+            config.test_mark += cvg_cvs_mark_base
 
-        p = Process(target=process_run, args=(config, CUDAS[i/2 + 1]))
+        p = Process(target=process_run, args=(config,))
+        task_counter += 1
         p.start()
-        p.join()
 
 
     

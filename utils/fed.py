@@ -1,19 +1,28 @@
 
-from calendar import c
+from asyncio import Task
+from matplotlib import test
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Subset
 
 import numpy as np
-
+import os
 
 from enum import Enum
 import copy
 import random
 
 from utils.data import TaskName, load_dataset, DatasetPartitioner, quick_draw
-from utils.model import CIFARResNet, test_model
+from utils.model import CIFARResNet, test_model, SpeechCommand
+
+from torch.utils.data.dataset import Dataset, Subset
+
+from torchaudio.datasets import SPEECHCOMMANDS
+from torchaudio.transforms import Resample
+import torch.nn.functional as F
+from torch import nn, optim, Tensor
+
 
 class Config:
 
@@ -99,19 +108,247 @@ class Config:
         self.result_file_loss = self.result_file_loss[0:-1] + str(num)
 
 
+class TaskSpeechCommand():
+
+    labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
+        'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
+        'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
+        'visual', 'wow', 'yes', 'zero']
+
+    class SubsetSC(SPEECHCOMMANDS):
+        def __init__(self, subset, data_path):
+            super().__init__(root=data_path, download=True)
+
+            def load_list(filename):
+                filepath = os.path.join(self._path, filename)
+                with open(filepath) as fileobj:
+                    return [os.path.join(self._path, line.strip()) for line in fileobj]
+
+            if subset == "validation":
+                self._walker = load_list("validation_list.txt")
+            elif subset == "testing":
+                self._walker = load_list("testing_list.txt")
+            elif subset == "training":
+                excludes = load_list("validation_list.txt") + load_list("testing_list.txt")
+                excludes = set(excludes)
+                self._walker = [w for w in self._walker if w not in excludes]
+
+    def __init__(self, config: Config, trainset=None, testset=None):
+        self.config = copy.deepcopy(config)
+        self.trainset = trainset
+        self.testset = testset
+
+        self.scheduler = None
+        self.loss_fn = F.nll_loss
+
+        # print(len(self.trainset))
+        if self.testset is not None:
+            waveform, sample_rate, label, speaker_id, utterance_number = self.testset[0]
+        else:
+            waveform, sample_rate, label, speaker_id, utterance_number = self.trainset[0]
+        new_sample_rate = 8000
+        transform = Resample(orig_freq=sample_rate, new_freq=new_sample_rate)
+        # transformed: Resample = transform(waveform)
+        self.transform = transform.to(self.config.device)
+        waveform = waveform.to(self.config.device)
+        self.tranformed = self.transform(waveform).to(self.config.device)
+        self.model = SpeechCommand(n_input=self.tranformed.shape[0], n_output=len(self.labels)).to(self.config.device)
+
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.config.lr, weight_decay=0.0001)
+        step_size = self.config.lr_interval * self.config.group_epoch_num * self.config.local_epoch_num
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.1)  # reduce the learning after 20 epochs by a factor of 10
+
+        if trainset is not None:
+            self.train_dataloader = TaskSpeechCommand.get_dataloader("train", self.config, trainset)
+        if testset is not None:
+            self.test_dataloader = TaskSpeechCommand.get_dataloader("test", self.config, None, testset)
+
+    @staticmethod
+    def get_datasets(config: Config) -> 'tuple[Dataset, Dataset]':
+        testset = TaskSpeechCommand.SubsetSC("testing", config.data_path)
+        trainset = TaskSpeechCommand.SubsetSC("training", config.data_path)
+
+        removed_train = []
+        removed_test = []
+        for i in range(len(trainset)):
+            waveform, sample_rate, label, speaker_id, utterance_number = trainset[i]
+            if waveform.shape[-1] != 16000:
+                removed_train.append(i)
+
+        trainset = Subset(trainset, list(set(range(len(trainset))) - set(removed_train)))
+
+        for i in range(len(testset)):
+            waveform, sample_rate, label, speaker_id, utterance_number = testset[i]
+            if waveform.shape[-1] != 16000:
+                removed_test.append(i)
+                # testset._walker.remove(testset._walker[i])
+                # removed_test += 1
+        
+        testset = Subset(testset, list(set(range(len(testset))) - set(removed_test)))
+
+        print("Data number removed from trainset: ", len(removed_train))
+        print("Data number removed from testset: ", len(removed_test))
+        return (trainset, testset)
+
+    @staticmethod
+    def get_dataloader(loader, config: Config, trainset=None, testset=None, ):
+
+        if config.device == torch.device("cuda"):
+            num_workers = 1
+            pin_memory = True
+        else:
+            num_workers = 0
+            pin_memory = False
+
+        # test dataloader
+        if loader != "train":
+            test_dataloader = DataLoader(
+                    testset,
+                    batch_size=1000,
+                    shuffle=False,
+                    drop_last=True,
+                    collate_fn=TaskSpeechCommand.collate_fn,
+                    num_workers=num_workers,
+                    pin_memory=pin_memory,
+                    )
+        if loader != "test":
+        # train dataloader
+        # if 0 <= self.config.reside and self.configs.reside <= self.configs.client_num:
+        #     data_num = self.configs.l_data_num
+        #     reside = self.configs.reside
+        #     self.trainset = Subset(Task.trainset,
+        #         Task.trainset_perm[data_num*reside: data_num*(reside+1)])
+            # self.trainset = trainset
+            train_dataloader = DataLoader(
+            trainset,
+            batch_size=config.batch_size,
+            shuffle=True,
+            collate_fn=TaskSpeechCommand.collate_fn,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=False
+            )
+            
+        if loader == "train":
+            return train_dataloader
+        elif loader == "test":
+            return test_dataloader
+        else:
+            return train_dataloader, test_dataloader
+
+        
+
+    def train(self):
+        self.model.to(self.config.device)
+        self.model.train()
+        self.transform = self.transform.to(self.config.device)
+        for data, target in self.train_dataloader:
+            data = data.to(self.config.device)
+            target = target.to(self.config.device)
+            # apply transform and model on whole batch directly on device
+            data = self.transform(data)
+            output = self.model(data)
+            # negative log-likelihood for a tensor of size (batch x 1 x n_output)
+            loss = self.loss_fn(output.squeeze(), target)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            # self.scheduler.step()
+
+    def test(self, test_dataloader):
+        self.model.to(self.config.device)
+        self.model.eval()
+
+        dataset_size = len(test_dataloader.dataset)
+        correct, loss = 0, 0
+        for data, target in test_dataloader:
+            data = data.to(self.config.device)
+            target = target.to(self.config.device)
+            # apply transform and model on whole batch directly on device
+            data = self.transform(data)
+            output = self.model(data)
+
+            pred = TaskSpeechCommand.get_likely_index(output)
+            loss += self.loss_fn(output.squeeze(), target).item()
+
+            # pred = output.argmax(dim=-1)
+            correct += TaskSpeechCommand.number_of_correct(pred, target)
+
+        correct /= 1.0*dataset_size
+        loss /= 1.0*dataset_size
+
+        return correct, loss
+
+    @staticmethod
+    def label_to_index(word):
+        # Return the position of the word in labels
+        return torch.tensor(TaskSpeechCommand.labels.index(word))
+
+    @staticmethod
+    def index_to_label(index):
+        # Return the word corresponding to the index in labels
+        # This is the inverse of label_to_index
+        return TaskSpeechCommand.labels[index]
+
+    @staticmethod    
+    def pad_sequence(batch):
+        # Make all tensor in a batch the same length by padding with zeros
+        batch = [item.t() for item in batch]
+        batch = torch.nn.utils.rnn.pad_sequence(batch, batch_first=True, padding_value=0.)
+        return batch.permute(0, 2, 1)
+
+    @staticmethod
+    def collate_fn(batch):
+        # A data tuple has the form:
+        # waveform, sample_rate, label, speaker_id, utterance_number
+        tensors, targets = [], []
+
+        # Gather in lists, and encode labels as indices
+        for waveform, _, label, *_ in batch:
+            tensors += [waveform]
+            targets += [TaskSpeechCommand.label_to_index(label)]
+
+        # Group the list of tensors into a batched tensor
+        tensors = TaskSpeechCommand.pad_sequence(tensors)
+        targets = torch.stack(targets)
+
+        return tensors, targets
+
+    @staticmethod
+    def number_of_correct(pred, target):
+        # count number of correct predictions
+        return pred.squeeze().eq(target).sum().item()
+
+    @staticmethod
+    def get_likely_index(tensor):
+        # find most likely label index for each element in the batch
+        return tensor.argmax(dim=-1)
+
+    @staticmethod
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+
 class Client:
     @staticmethod
-    def init_clients(subsets_indexes: 'list[Subset]', lr, local_epoch_num, train_method, device, batch_size, loss=nn.CrossEntropyLoss()) \
+    def init_clients(subsets_indexes: 'list[Subset]', config: Config) \
         -> 'tuple[nn.Module, list[torch.Tensor], list[Client]]':
         """
         return
         model: global model
         models: models on clients
         """
+        
         clients: 'list[Client]' = []
         client_num = len(subsets_indexes)
-        model: nn.Module = CIFARResNet()
-        model.to(device)
+        if config.task_name == TaskName.CIFAR:
+            model: nn.Module = CIFARResNet()
+        elif config.task_name == TaskName.SPEECHCOMMAND:
+            model = SpeechCommand()
+
+        model.to(config.device)
         sd = model.state_dict()
         for key in sd.keys():
             if key.endswith('batches_tracked') is False:
@@ -119,42 +356,56 @@ class Client:
         model.load_state_dict(sd)
 
         # global c in SCAFFOLD
-        c: list[torch.Tensor] = [ param.clone().zero_().to(device) for param in model.parameters()]
+        c: list[torch.Tensor] = [ param.clone().zero_().to(config.device) for param in model.parameters()]
 
 
         for i in range(client_num):
-            new_model = CIFARResNet()
+            if config.task_name == TaskName.CIFAR:
+                new_model = CIFARResNet()
+            elif config.task_name == TaskName.SPEECHCOMMAND:
+                new_model = SpeechCommand()
             # torch.nn.init.normal_(model)
             sd = copy.deepcopy(model.state_dict())
             new_model.load_state_dict(sd)
-
-            clients.append(Client(new_model, subsets_indexes[i], lr, local_epoch_num, train_method, device, batch_size, loss))
+            # print(subsets_indexes)
+            client = Client(new_model, subsets_indexes[i], None, config)
+            clients.append(client)
 
         return model, c, clients
 
     def __init__(
         self, model: nn.Module, 
         trainset: Subset, 
-        lr: float, 
-        local_epoch_num=5,
-        train_method = Config.TrainMethod.SGD,
-        device: str="cpu", 
-        batch_size: int=0, 
-        loss_fn=nn.CrossEntropyLoss()
+        testset: Subset,
+        config: Config = None
         ) -> None:
-
-        self.model = model
+        self.config = copy.deepcopy(config)
+        self.task_name = self.config.task_name
         self.trainset = trainset
-        # self.training_cost = self.calc_training_cost(len(self.trainset.indices))
-        self.lr = lr
-        self.local_epoch_num = local_epoch_num
-        self.train_method  = train_method
-        self.device = device
-        self.batch_size = batch_size if batch_size != 0 else len(trainset.indices)
-        self.loss_fn = loss_fn
+        self.testset = testset
+        if self.config.task_name == TaskName.SPEECHCOMMAND:
+            self.task = TaskSpeechCommand(config, trainset)
+            self.model = self.task.model
+            self.trainloader = self.task.train_dataloader
+            self.optimizer = self.task.optimizer
+            self.scheduler = self.task.scheduler
+            self.loss_fn = self.task.loss_fn
+            self.transform = self.task.transform
+            self.transform.to(self.config.device)
 
-        self.trainloader = DataLoader(self.trainset, self.batch_size, True) #, drop_last=True
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
+        elif self.config.task_name == TaskName.CIFAR:
+            self.model = model
+            # self.training_cost = self.calc_training_cost(len(self.trainset.indices))
+            self.loss_fn = nn.CrossEntropyLoss()
+
+            self.trainloader = DataLoader(self.trainset, self.config.batch_size, True) #, drop_last=True
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9, weight_decay=0.0001) #
+        
+        self.lr = self.config.lr
+        self.local_epoch_num = self.config.local_epoch_num
+        self.train_method  = self.config.train_method
+        self.device = self.config.device
+        self.batch_size = self.config.batch_size if self.config.batch_size != 0 else len(trainset.indices)
 
         # training results
         self.train_loss = 0
@@ -166,7 +417,6 @@ class Client:
         self.c_global: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
 
     def train(self):
-
         self.model.to(self.device)
         self.model.train()
 
@@ -182,10 +432,32 @@ class Client:
         for tensor in self.grad:
             tensor.zero_()
 
+        # print(self.device)
         for i in range(self.local_epoch_num):
-            for (image, label) in self.trainloader:
-                y = self.model(image.to(self.device))
-                loss = self.loss_fn(y, label.to(self.device))
+            for (X, label) in self.trainloader:
+                # X.to(self.device)
+                X = X.to(self.device)
+                label = label.to(self.device)
+
+                if self.task_name == TaskName.SPEECHCOMMAND:
+                    self.transform = self.transform.to(self.device)
+
+                    # X_ = X.clone()
+                    # print(self.transform.device)
+                    # print(X[0].shape)
+                    X = self.transform(X)
+                    # print(X[0].shape)
+                    # X.to(self.device)
+                    # X = X.to(self.device)
+
+
+                y = self.model(X)
+                if self.task_name == TaskName.SPEECHCOMMAND:
+                    loss = self.loss_fn(y.squeeze(1), label)
+                    # print(y.squeeze(1).shape)
+                    # print(label.shape)
+                else:
+                    loss = self.loss_fn(y, label)
 
                 if self.train_method == Config.TrainMethod.FEDPROX:
                     for w_t, w in zip(self.temp_model_params, self.model.parameters()):
@@ -204,6 +476,9 @@ class Client:
                 #     self.grad[i] += param.grad.detach().data
 
                 self.optimizer.step()
+            if self.task_name == TaskName.SPEECHCOMMAND:
+                self.scheduler.step()
+
 
         # for c_temp, param_c, param_g, c_i, c_g in zip(self.c_temp, self.model.parameters(), self.temp_model_params, self.c_client, self.c_global):
 
@@ -218,6 +493,8 @@ class Client:
         # for i, param in enumerate(self.model.parameters()):
         #     self.grad[i] /= self.local_epoch_num * len(self.trainset.indices)
         # self.train_loss /= self.local_epoch_num * len(self.trainset.indices)
+        
+
         return self.train_loss, self.grad
 
     def set_lr(self, new_lr):
@@ -229,6 +506,7 @@ class Client:
     #     return training_cost
 
 class GFL:
+
     def set_seed(self, seed=None):
         if seed is None:
             random.seed()
@@ -257,15 +535,18 @@ class GFL:
         self.fcost.flush()
 
         self.set_seed(data_seed)
-        self.trainset, self.testset = load_dataset(self.config.task_name)
-
-        partitioner = DatasetPartitioner(self.trainset, self.config.client_num, self.config.data_num_range, self.config.alpha)
+        if self.config.task_name == TaskName.CIFAR:
+            self.trainset, self.testset = load_dataset(self.config.task_name)
+        elif self.config.task_name == TaskName.SPEECHCOMMAND:
+            self.trainset, self.testset = TaskSpeechCommand.get_datasets(self.config)
+            self.task = TaskSpeechCommand(self.config, testset=self.testset)
+        partitioner = DatasetPartitioner(self.trainset, self.config.client_num, self.config.data_num_range, self.config.alpha, self.config.task_name)
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
         self.subsets_indices = partitioner.get_subsets()
         # partitioner.draw(20,"./pic/dubug.png")
         # global model, global drift in SCAFFOLD, clients
-        self.model, self.c_global, self.clients = Client.init_clients(self.subsets_indices, self.config.lr, self.config.local_epoch_num, self.config.train_method, self.config.device, self.config.batch_size)
+        self.model, self.c_global, self.clients = Client.init_clients(self.subsets_indices, self.config)
         self.c_global : list[torch.Tensor] = [ param.clone().detach().zero_().to(self.config.device) for param in self.model.parameters()]
 
         self.clients_data_nums = np.sum(self.distributions, axis=1)
@@ -433,22 +714,42 @@ class GFL:
                 
                 group_size = len(group)
                 for client_index in group:
-                    # data from Raspberry PI 4
-                    # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
-                    # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
-                    # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
-                    # fedprox coefs: [0.06719291 0.14201339]
+                    if self.config.task_name == TaskName.CIFAR:
+                        # data from Raspberry PI 4
+                        # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
+                        # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
+                        # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
+                        # fedprox coefs: [0.06719291 0.14201339]
 
-                    # secagg coeffs
-                    group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
-                    # regular train coeffs
-                    train_coefs = [ 0.07093414, -0.00559966]
+                        # secagg coeffs
+                        group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                        # regular train coeffs
+                        train_coefs = [ 0.07093414, -0.00559966]
 
-                    if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                        group_coefs = [0.01879308, 0.18775216, 0.19883809]
-                        train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
-                    if self.config.train_method == Config.TrainMethod.FEDPROX:
-                        train_coefs = [0.06719291, 0.14201339]
+                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                            group_coefs = [0.01879308, 0.18775216, 0.19883809]
+                            train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
+                        if self.config.train_method == Config.TrainMethod.FEDPROX:
+                            train_coefs = [0.06719291, 0.14201339]
+                    elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                        # audio
+                        # distance coefficiences: [ 0.00079432 -0.00142096  0.02028448]
+                        # training coefficiences: [0.00244381 0.10137752]
+                        # fedprox coefficiences: [0.00247751 0.10650803]
+                        # SCAFFOLD coefficiences: [0.00259606 0.10145685]
+                        # sec agg: [0.00564634 0.04887151 0.03296802]
+                        # scaffold agg: [ 0.01546567 -0.14052762  0.8393565 ]
+                        group_coefs = [0.00564634, 0.04887151, 0.03296802]
+                        # regular train coeffs
+                        train_coefs = [0.00244381, 0.10137752]
+
+                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                            group_coefs = [ 0.01546567, -0.14052762,  0.8393565 ]
+                            train_coefs = [0.00259606, 0.10145685]
+                        if self.config.train_method == Config.TrainMethod.FEDPROX:
+                            train_coefs = [0.00247751, 0.10650803]
+
+
 
                     training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
                     group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
@@ -481,8 +782,7 @@ class GFL:
 
         avg_group_size = np.mean(self.groups_data_nums_arr)
         sampling_data_num = self.config.sampling_frac * np.sum(self.clients_data_nums)
-        self.sampling_num = int(sampling_data_num / avg_group_size)
-
+        self.sampling_num = round(sampling_data_num / avg_group_size)
 
     def global_distribute(self, selected_groups: 'list[int]'):
         """
@@ -549,7 +849,7 @@ class GFL:
             indices = range(len(self.groups))
             # sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / weighted_avg)
             self.selected_groups = np.random.choice(indices, self.sampling_num, p=probs, replace=False)
-        
+
         else:
             pass
 
@@ -669,7 +969,6 @@ class GFL:
         
         self.model.load_state_dict(state_dict_avg)
 
-
     def calc_selected_groups_cost(self, selected_groups: 'list[int]'):
         """
         return cost
@@ -683,7 +982,10 @@ class GFL:
         # indices = np.random.choice(range(len(self.testset)), 1000, replace=False)
         # subtestset = Subset(self.testset, indices=indices)
         # # print(indices)
-        self.testloader = DataLoader(self.testset, 1000, shuffle=True)
+        if self.config.task_name == TaskName.CIFAR:
+            self.testloader = DataLoader(self.testset, 500, shuffle=True)
+        elif self.config.task_name == TaskName.SPEECHCOMMAND:
+            self.testloader = self.task.test_dataloader
 
         # print(self.groups)
         accus = []
@@ -693,9 +995,10 @@ class GFL:
         for i in range(self.config.global_epoch_num):
             # lr decay
             if i % self.config.lr_interval == self.config.lr_interval - 1:
-                for client in self.clients:
-                    client.set_lr(client.lr / 10)
-                print('lr decay to {}'.format(self.clients[0].lr))
+                if self.config.task_name == TaskName.CIFAR:
+                    for client in self.clients:
+                        client.set_lr(client.lr / 10)
+                    print('lr decay to {}'.format(self.clients[0].lr))
 
             selected_groups = self.sample()
             selected_cost = self.calc_selected_groups_cost(selected_groups)
@@ -729,7 +1032,11 @@ class GFL:
 
             # test and record
             if i % self.config.log_interval == self.config.log_interval - 1:
-                accu, loss = test_model(self.model, self.testloader)
+                if self.config.task_name == TaskName.CIFAR:
+                    accu, loss = test_model(self.model, self.testloader)
+                elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                    self.task.model = self.model
+                    accu, loss = self.task.test(self.testloader)
 
                 self.faccu.write(f'{accu} ')
                 self.floss.write(f'{loss} ')

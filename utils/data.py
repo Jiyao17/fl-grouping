@@ -12,9 +12,12 @@ import numpy as np
 import random
 from enum import Enum
 
+from utils.model import SpeechCommand
+
 
 class TaskName(Enum):
     CIFAR = 1
+    SPEECHCOMMAND = 2
 
 def quick_draw(values: Iterable, filename: str="./pic/quick_draw.png"):
     plt.plot(values)
@@ -52,6 +55,8 @@ def load_dataset_CIFAR(data_path: str, dataset_type: str):
 def load_dataset(dataset_name: TaskName, data_path: str="~/projects/fl-grouping/data/", dataset_type: str="both"):
     if dataset_name == TaskName.CIFAR:
         return load_dataset_CIFAR(data_path, dataset_type)
+    # elif dataset_name == TaskName.SPEECHCOMMAND:
+    #     return load_dataset_SpeechCommand(data_path, dataset_type)
 
 
 def get_targets_set_as_list(dataset: Dataset) -> list:
@@ -64,13 +69,18 @@ def get_targets_set_as_list(dataset: Dataset) -> list:
 
     return targets_list
 
-def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
+def dataset_categorize(dataset: Dataset, task_name:TaskName) -> 'list[list[int]]':
     """
     return value:
     (return list)[i]: list[int] = all indices for category i
     """
-    targets = dataset.targets
-    if type(dataset.targets) is not list:
+    if task_name == TaskName.CIFAR:
+        targets = dataset.targets
+    elif task_name == TaskName.SPEECHCOMMAND:
+        targets = []
+        for waveform, sample_rate, label, speaker_id, utterance_number in dataset:
+            targets.append(label)
+    if type(targets) is not list:
         targets = targets.tolist()
     targets_list = list(set(targets))
     # can be deleted, does not matter but more clear if kept
@@ -90,6 +100,11 @@ def dataset_categorize(dataset: Dataset) -> 'list[list[int]]':
 
 
 class DatasetPartitioner:
+    speech_command_labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
+        'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
+        'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
+        'visual', 'wow', 'yes', 'zero']
+
     @staticmethod
     def plot_distribution(distributions: np.ndarray, num: int, filename: str="./pic/distribution.png"):
         
@@ -115,13 +130,18 @@ class DatasetPartitioner:
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
         data_num_range: 'tuple[int]'=(10, 50), 
-        alpha_range: 'tuple[float, float]'=(0.05, 0.5)
+        alpha_range: 'tuple[float, float]'=(0.05, 0.5), task_name: TaskName=TaskName.CIFAR
         ):
         self.dataset = dataset
         self.subset_num = subset_num
         # range = (min, max)
         self.data_num_range = data_num_range
-        self.label_type_num = len(get_targets_set_as_list(dataset))
+        self.task_name = task_name
+        if task_name == TaskName.CIFAR:
+
+            self.label_type_num = len(get_targets_set_as_list(dataset))
+        elif task_name == TaskName.SPEECHCOMMAND:
+            self.label_type_num = len(DatasetPartitioner.speech_command_labels)
         # self.alpha = [alpha] * self.label_type_num
         self.alpha_range = alpha_range
 
@@ -176,9 +196,10 @@ class DatasetPartitioner:
         if self.distributions is None:
             self.get_distributions()
 
-        categorized_indexes = dataset_categorize(self.dataset)
+        categorized_indexes = dataset_categorize(self.dataset, self.task_name)
         self.subsets = []
-        
+        # print("distributions: ", self.distributions[:5])
+        # print("categorized_indexes: ", categorized_indexes[:5])
         for distribution in self.distributions:
             subset_indexes = []
             for i, num in enumerate(distribution):
