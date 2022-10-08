@@ -142,9 +142,9 @@ comp_base.alpha = (0.1, 0.1)
 comp_base.max_group_cv = 1.0
 comp_base.min_group_size = 5
 comp_base.data_num_range = (20, 201)
-comp_base.group_epoch_num = 10
+comp_base.group_epoch_num = 5
 comp_base.local_epoch_num = 2
-comp_base.log_interval = 1
+comp_base.log_interval = 5
 comp_base.budget = 1.1e6
 
 
@@ -169,17 +169,24 @@ fedprox_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
 fedprox_cvg_cvs.train_method = Config.TrainMethod.FEDPROX
 fedprox_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/fedprox/"
 
-audio_configs = [comp_base, scaffold, FedProx, comp_cvg_cvs, scaffold_cvg_cvs, fedprox_cvg_cvs]
+audio_configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ]
 for i, config in enumerate(audio_configs):
     audio_configs[i] = copy.deepcopy(config)
     audio_configs[i].task_name = TaskName.SPEECHCOMMAND
+    audio_configs[i].server_num = 1
+    audio_configs[i].client_num = 150
+    audio_configs[i].data_num_range = (200, 201)
+    audio_configs[i].sampling_frac = 0.2
     # cv=1.0 gs=5
     # 0.5 10
-    audio_configs[i].alpha = (0.1, 0.1)
-    audio_configs[i].max_group_cv = 1.5
-    audio_configs[i].min_group_size = 5
+    audio_configs[i].group_epoch_num = 5
+    audio_configs[i].local_epoch_num = 2
+    audio_configs[i].alpha = (0.01, 0.01)
+    audio_configs[i].max_group_cv = 10.0
+    audio_configs[i].min_group_size = audio_configs[i].client_num // 10
     audio_configs[i].lr = 0.01
-    audio_configs[i].lr_interval = 20
+    audio_configs[i].lr_interval = 100
+    audio_configs[i].log_interval = 5
 
     audio_configs[i].test_mark = "_sc"
 
@@ -205,25 +212,25 @@ if __name__ == "__main__":
     # gs_comp.min_group_size = 50
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
-    CUDAS = [2, 4, 6]
+    CUDAS = [2, 3, 6, 7]
     configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs,]
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
-    # configs = [configs[2], configs[5]]
+    configs = [configs[2], configs[5]]
 
 
     # configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
-    configs = [audio_configs[2], audio_configs[5]]
+    # configs = [audio_configs[2], audio_configs[5]]
 
 
 
     task_counter = 0
     for i, config in enumerate(configs):
 
-        config.group_epoch_num = 5
-        config.local_epoch_num = 2
-        config.log_interval = 5
+        # config.group_epoch_num = 5
+        # config.local_epoch_num = 2
+        # config.log_interval = 5
         
         cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)

@@ -52,8 +52,10 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # marks = ["_alpha0.1_cv0.1_10*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_cv1.0_10*2", ]
 # fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
 # comp audio
-marks = ["_sc_alpha0.1_gs5_5*2" ] * 3 + ["_sc_alpha0.1_cv1.5_5*2", ] * 3
+marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_cv10.0_5*2", ] * 3
 fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
+# marks = ["_sc_alpha0.01_cv10.0_5*2", ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 3
+# fig_labels = ["CVG", "CVG+FedProx", "CVG+SCAFFOLD", "RG", "RG+FedProx", "RG+SCAFFOLD", ]
 
 #  marks = ["RGRS-51", "RGRS-53", "RGRS-55", "RGRS-510"]
 # fig_labels = [ mark[1:].replace("_", " ") for mark in marks]
@@ -114,9 +116,9 @@ plt.xlabel('Global Round', fontsize=24)
 plt.ylabel('Accuracy', fontsize=24)
 # plt.subplots_adjust(0.16, 0.16, 0.96, 0.96)
 
-plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
-plt.xticks(fontsize=24)
-plt.yticks(fontsize=24)
+# plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+# plt.xticks(fontsize=24)
+# plt.yticks(fontsize=24)
 plt.grid(True)
 plt.legend()
 

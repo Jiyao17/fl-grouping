@@ -498,8 +498,12 @@ class Client:
         return self.train_loss, self.grad
 
     def set_lr(self, new_lr):
-        self.lr = new_lr
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
+        if self.task_name == TaskName.CIFAR:
+            self.lr = new_lr
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
+        elif self.task_name == TaskName.SPEECHCOMMAND:
+            self.lr = new_lr
+            self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=0.0001)
 
     # def calc_training_cost(self, dataset_len: int) -> float:
     #     training_cost = 0.00495469 * dataset_len + 0.01023199
@@ -583,8 +587,11 @@ class GFL:
 
 
         self.group()
-        pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".png"
-        self.inspect_group_distribution(self.groups, len(self.groups)//2, pic_filename)
+        pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".pdf"
+        show_num = 10
+        if show_num > len(self.groups):
+            show_num = len(self.groups)
+        self.inspect_group_distribution(self.groups, show_num, pic_filename)
 
     def __calc_group_cv(self, subset_indices: 'list[int]') -> float:
         """
@@ -995,7 +1002,6 @@ class GFL:
         for i in range(self.config.global_epoch_num):
             # lr decay
             if i % self.config.lr_interval == self.config.lr_interval - 1:
-                if self.config.task_name == TaskName.CIFAR:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)
                     print('lr decay to {}'.format(self.clients[0].lr))

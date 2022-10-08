@@ -1,0 +1,3 @@
+
+config:{'task_name': <TaskName.SPEECHCOMMAND: 2>, 'server_num': 1, 'client_num': 150, 'data_num_range': (20, 201), 'alpha': (0.01, 0.01), 'sampling_frac': 0.2, 'data_path': './data/', 'budget': 1100000.0, 'global_epoch_num': 1000, 'group_epoch_num': 5, 'local_epoch_num': 2, 'lr_interval': 100, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'train_method': <TrainMethod.FEDPROX: 3>, 'selection_mode': <SelectionMode.PROB_SRCV: 2>, 'aggregation_option': <AggregationOption.WEIGHTED_AVERAGE: 1>, 'grouping_mode': <GroupingMode.CV_GREEDY: 3>, 'max_group_cv': 10.0, 'min_group_size': 15, 'log_interval': 5, 'result_dir': './exp_data/grouping/cvg_cvs/fedprox/', 'test_mark': '_sc_alpha0.01_cv10.0_5*2', 'comment': ''}
+0.06049786769810572 0.05444808092829515 0.06267975800852921 

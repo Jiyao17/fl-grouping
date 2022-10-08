@@ -35,8 +35,8 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # alpha=0.1 min_gs=5 max_cv=0.5 10*5
 sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
-marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_10*2" ] \
-    + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_10*2"] 
+marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2" ] \
+    + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
 # marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2" ] \
 #     + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
 

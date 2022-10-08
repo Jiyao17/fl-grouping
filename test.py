@@ -50,8 +50,8 @@ from utils.data import load_dataset, TaskName, DatasetPartitioner
 
 trainset, testset = load_dataset(TaskName.CIFAR)
 
-partitioner = DatasetPartitioner(trainset, 1000, (10, 50), (0.05, 0.50))
+partitioner = DatasetPartitioner(trainset, 1000, (10, 50), (0.1, 0.1))
 label_type_num = partitioner.label_type_num
 distributions = partitioner.get_distributions()
 subsets_indices = partitioner.get_subsets()
-partitioner.draw(20)
+partitioner.draw(10)
