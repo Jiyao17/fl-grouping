@@ -156,7 +156,7 @@ class TaskSpeechCommand():
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.config.lr, weight_decay=0.0001)
         step_size = self.config.lr_interval * self.config.group_epoch_num * self.config.local_epoch_num
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.1)  # reduce the learning after 20 epochs by a factor of 10
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.5)  # reduce the learning after 20 epochs by a factor of 10
 
         if trainset is not None:
             self.train_dataloader = TaskSpeechCommand.get_dataloader("train", self.config, trainset)
@@ -476,8 +476,9 @@ class Client:
                 #     self.grad[i] += param.grad.detach().data
 
                 self.optimizer.step()
-            if self.task_name == TaskName.SPEECHCOMMAND:
-                self.scheduler.step()
+            
+            # if self.task_name == TaskName.SPEECHCOMMAND:
+            #     self.scheduler.step()
 
 
         # for c_temp, param_c, param_g, c_i, c_g in zip(self.c_temp, self.model.parameters(), self.temp_model_params, self.c_client, self.c_global):
@@ -1001,10 +1002,14 @@ class GFL:
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
             # lr decay
-            if i % self.config.lr_interval == self.config.lr_interval - 1:
+            if i % self.config.lr_interval == 0:
+                if self.config.task_name == TaskName.CIFAR:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)
                     print('lr decay to {}'.format(self.clients[0].lr))
+                elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                    for client in self.clients:
+                        client.set_lr(client.lr / 5)
 
             selected_groups = self.sample()
             selected_cost = self.calc_selected_groups_cost(selected_groups)

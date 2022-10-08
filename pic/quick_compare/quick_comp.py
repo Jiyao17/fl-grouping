@@ -76,14 +76,15 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
     a += 1
     cost_filename = root_data_dir + sub_dir + "cost" + mark
     accu_filename = root_data_dir + sub_dir + "accu" + mark
-
-    cost = open(cost_filename, "r").readlines()[-1].strip().split()
-    if cost[0] != "" and cost[0][0] == "c":
+    try:
+        cost = open(cost_filename, "r").readlines()[-1].strip().split()
+        if cost[0] != "" and cost[0][0] == "c":
+            continue
+        cost = [float(x) for x in cost if x != ""]
+        accu = open(accu_filename, "r").readlines()[-1].strip().split()
+        accu = [float(x) for x in accu if x != ""]
+    except:
         continue
-    cost = [float(x) for x in cost if x != ""]
-    accu = open(accu_filename, "r").readlines()[-1].strip().split()
-    accu = [float(x) for x in accu if x != ""]
-
     # plt.plot(cost, accu, label=label)
     plt.plot(range(len(cost)), accu,  label=label)
 

@@ -175,17 +175,19 @@ for i, config in enumerate(audio_configs):
     audio_configs[i].task_name = TaskName.SPEECHCOMMAND
     audio_configs[i].server_num = 1
     audio_configs[i].client_num = 150
-    audio_configs[i].data_num_range = (200, 201)
+    audio_configs[i].data_num_range = (180, 181)
     audio_configs[i].sampling_frac = 0.2
     # cv=1.0 gs=5
     # 0.5 10
+    audio_configs[i].global_epoch_num = 1000
+
     audio_configs[i].group_epoch_num = 5
     audio_configs[i].local_epoch_num = 2
     audio_configs[i].alpha = (0.01, 0.01)
     audio_configs[i].max_group_cv = 10.0
-    audio_configs[i].min_group_size = audio_configs[i].client_num // 10
-    audio_configs[i].lr = 0.01
-    audio_configs[i].lr_interval = 100
+    audio_configs[i].min_group_size = 15
+    audio_configs[i].lr = 0.005
+    audio_configs[i].lr_interval = 10000
     audio_configs[i].log_interval = 5
 
     audio_configs[i].test_mark = "_sc"
@@ -214,12 +216,12 @@ if __name__ == "__main__":
     # config = gs_comp
     CUDAS = [2, 3, 6, 7]
     configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs,]
-    # configs = [configs[0], configs[3]]
+    configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
-    configs = [configs[2], configs[5]]
+    # configs = [configs[2], configs[5]]
 
 
-    # configs = [audio_configs[0], audio_configs[3]]
+    configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
 
