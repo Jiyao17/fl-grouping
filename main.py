@@ -186,8 +186,8 @@ for i, config in enumerate(audio_configs):
     audio_configs[i].alpha = (0.01, 0.01)
     audio_configs[i].max_group_cv = 10.0
     audio_configs[i].min_group_size = 15
-    audio_configs[i].lr = 0.005
-    audio_configs[i].lr_interval = 10000
+    audio_configs[i].lr = 0.01
+    audio_configs[i].lr_interval = 50
     audio_configs[i].log_interval = 5
 
     audio_configs[i].test_mark = "_sc"
@@ -221,8 +221,8 @@ if __name__ == "__main__":
     # configs = [configs[2], configs[5]]
 
 
-    configs = [audio_configs[0], audio_configs[3]]
-    # configs = [audio_configs[1], audio_configs[4]]
+    # configs = [audio_configs[0], audio_configs[3]]
+    configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
 
 

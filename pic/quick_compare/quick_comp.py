@@ -15,7 +15,7 @@ colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
 (0.09019607843137255, 0.7450980392156863, 0.8117647058823529) # cyan
 ]
 
-root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
+root_data_dir = "/home/shallow/projects/fl-grouping/exp_data/"
 # sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 3
 sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
