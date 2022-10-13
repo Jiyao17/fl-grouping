@@ -94,21 +94,42 @@ var_30_30.test_mark = "_30-30"
 
 
 debug = Config(
-    task_name=TaskName.SPEECHCOMMAND,
+    task_name=TaskName.CIFAR,
     train_method=Config.TrainMethod.SGD,
     server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**7,
-    global_epoch_num=100, group_epoch_num=10, local_epoch_num=2,
+    global_epoch_num=1000, group_epoch_num=5, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
-    log_interval=1, 
+    log_interval=5, 
     # alpha=0.1: sigma = 
     grouping_mode=Config.GroupingMode.CV_GREEDY, max_group_cv=1, min_group_size=5,
     # partition_mode=Config.PartitionMode.IID,
     selection_mode=Config.SelectionMode.PROB_SRCV,
+    aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
     device="cuda",
     data_path="./data/", 
     result_dir="./exp_data/debug/",
-    test_mark="_sc",
+    test_mark="_srcv_biased",
+    comment="",
+)
+
+based_srcv = Config(
+    task_name=TaskName.CIFAR,
+    train_method=Config.TrainMethod.SGD,
+    server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
+    sampling_frac=0.2, budget=10**7,
+    global_epoch_num=1000, group_epoch_num=5, local_epoch_num=2,
+    lr=0.01, lr_interval=1000, local_batch_size=10,
+    log_interval=5, 
+    # alpha=0.1: sigma = 
+    grouping_mode=Config.GroupingMode.CV_GREEDY, max_group_cv=2, min_group_size=5,
+    # partition_mode=Config.PartitionMode.IID,
+    selection_mode=Config.SelectionMode.PROB_SRCV,
+    aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
+    device="cuda",
+    data_path="./data/", 
+    result_dir="./exp_data/debug/",
+    test_mark="_biased_srcv",
     comment="",
 )
 
@@ -158,7 +179,8 @@ scaffold.result_dir = "./exp_data/grouping/rg_rs/scaffold/"
 
 comp_cvg_cvs = copy.deepcopy(comp_base)
 comp_cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
-comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_SRCV
+# comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_SRCV
+comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
 comp_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/"
 
 scaffold_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
@@ -187,7 +209,7 @@ for i, config in enumerate(audio_configs):
     audio_configs[i].max_group_cv = 10.0
     audio_configs[i].min_group_size = 15
     audio_configs[i].lr = 0.01
-    audio_configs[i].lr_interval = 50
+    audio_configs[i].lr_interval = 200
     audio_configs[i].log_interval = 5
 
     audio_configs[i].test_mark = "_sc"
@@ -226,7 +248,7 @@ if __name__ == "__main__":
     # configs = [audio_configs[2], audio_configs[5]]
 
 
-
+    configs = [debug]
     task_counter = 0
     for i, config in enumerate(configs):
 

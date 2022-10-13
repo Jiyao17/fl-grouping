@@ -1,5 +1,4 @@
 
-from asyncio import Task
 from matplotlib import test
 import torch
 import torch.nn as nn
@@ -156,7 +155,7 @@ class TaskSpeechCommand():
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.config.lr, weight_decay=0.0001)
         step_size = self.config.lr_interval * self.config.group_epoch_num * self.config.local_epoch_num
-        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.5)  # reduce the learning after 20 epochs by a factor of 10
+        # self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.5)  # reduce the learning after 20 epochs by a factor of 10
 
         if trainset is not None:
             self.train_dataloader = TaskSpeechCommand.get_dataloader("train", self.config, trainset)
@@ -1002,7 +1001,7 @@ class GFL:
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
             # lr decay
-            if i % self.config.lr_interval == 0:
+            if i % self.config.lr_interval == 0 and i != 0:
                 if self.config.task_name == TaskName.CIFAR:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)

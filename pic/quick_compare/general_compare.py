@@ -36,9 +36,9 @@ training_cost = [training_coeffs[0]*size + training_coeffs[1] for size in sizes]
 # y1 = np.array(date1.split(), dtype=np.float32)
 
 # x = np.arange(0, 100, 1)
-plt.plot(sizes, secagg_cost, label='Secure Aggregation', color=colors[3])
-plt.plot(sizes, distance_cost, label='Backdoor Detection', color=colors[0])
-plt.plot(sizes, training_cost, label='Training', color=colors[2])
+plt.plot(sizes, secagg_cost, label='Secure Aggregation', )
+plt.plot(sizes, distance_cost, label='Backdoor Detection', )
+plt.plot(sizes, training_cost, label='Training', )
 # plt.plot(y1, label='1')
 
 plt.rc('font', size=20)

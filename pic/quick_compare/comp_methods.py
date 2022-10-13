@@ -37,8 +37,8 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
 marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2" ] \
     + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
-# marks = ["_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2", "_alpha0.1_gs5_5*2" ] \
-#     + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
+marks = ["_alpha0.01_gs5_5*2", "_alpha0.01_gs5_5*2", "_sc_alpha0.01_gs5_5*2" ] \
+    + ["_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2", "_alpha0.1_cv1.0_5*2"] 
 
 fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "CVG", "CVG+FedProx", "CVG+SCAFFOLD"]
 
@@ -173,7 +173,7 @@ plt.xlim(0, 1e6)
 # plt.subplots_adjust(0.16, 0.18, 0.96, 0.96)
 
 plt.xlabel('Cost', fontsize=24)
-plt.ylabel('Global Round', fontsize=24)
+plt.ylabel('Accuracy', fontsize=24)
 plt.subplots_adjust(0.16, 0.16, 0.96, 0.96)
 
 plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))

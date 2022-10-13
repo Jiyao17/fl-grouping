@@ -1,0 +1,3 @@
+
+config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 1, 'client_num': 100, 'data_num_range': (10, 101), 'alpha': (0.1, 0.1), 'sampling_frac': 0.5, 'data_path': './data/', 'budget': 10000000, 'global_epoch_num': 100, 'group_epoch_num': 10, 'local_epoch_num': 2, 'lr_interval': 1000, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'train_method': <TrainMethod.SGD: 1>, 'selection_mode': <SelectionMode.PROB_ESRCV: 4>, 'aggregation_option': 7, 'grouping_mode': <GroupingMode.CV_GREEDY: 3>, 'max_group_cv': 1, 'min_group_size': 5, 'log_interval': 5, 'result_dir': './exp_data/debug/', 'test_mark': '_esrcv_sampling0.5_alpha0.1_gs5_10*2', 'comment': ''}
+0.1908 0.2311 0.2426 
