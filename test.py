@@ -35,9 +35,7 @@
 # print("real probs", occur[:10] / 10000)
 # print("real probs", occur[:10] / sample_num / 10000)
 
-# from utils.model import *
-
-# net = CIFARResNet()
+# print(net)
 
 # params_num = sum(p.numel() for p in net.parameters() if p.requires_grad)
 # for name, param in net.named_parameters():
@@ -46,12 +44,21 @@
 
 # print(params_num)
 
-from utils.data import load_dataset, TaskName, DatasetPartitioner
+# from utils.data import load_dataset, TaskName, DatasetPartitioner
 
-trainset, testset = load_dataset(TaskName.CIFAR)
+# trainset, testset = load_dataset(TaskName.CIFAR)
 
-partitioner = DatasetPartitioner(trainset, 1000, (10, 50), (0.1, 0.1))
-label_type_num = partitioner.label_type_num
-distributions = partitioner.get_distributions()
-subsets_indices = partitioner.get_subsets()
-partitioner.draw(10)
+# partitioner = DatasetPartitioner(trainset, 1000, (10, 50), (0.1, 0.1))
+# label_type_num = partitioner.label_type_num
+# distributions = partitioner.get_distributions()
+# subsets_indices = partitioner.get_subsets()
+# partitioner.draw(10)
+
+from utils.model import SpeechCommand
+import torch
+
+net = SpeechCommand()
+
+optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+print(optimizer.param_groups[0]['params'].keys())
+# print(net)

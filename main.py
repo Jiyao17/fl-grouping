@@ -13,7 +13,7 @@ base_config = Config(
     task_name=TaskName.CIFAR,
     server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**8,
-    global_epoch_num=1000,
+    global_epoch_num=1000, FedCLAR_epoch=100,
     # the following line may vary
     group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
@@ -126,7 +126,7 @@ gs_comp = Config(
     selection_mode=Config.SelectionMode.RANDOM,
     aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
     device="cuda",
-    data_path="./data/", 
+    data_path="./data/",
     # the following 2 lines may vary
     result_dir="./exp_data/grouping/rg_rs/",
     test_mark="",
@@ -146,6 +146,11 @@ comp_base.group_epoch_num = 5
 comp_base.local_epoch_num = 2
 comp_base.log_interval = 5
 comp_base.budget = 1.1e6
+
+FedCLAR = copy.deepcopy(comp_base)
+FedCLAR.train_method = Config.TrainMethod.FEDCLAR
+FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
+FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
 
 
 FedProx = copy.deepcopy(comp_base)
@@ -222,7 +227,7 @@ if __name__ == "__main__":
 
 
     # configs = [audio_configs[0], audio_configs[3]]
-    configs = [audio_configs[1], audio_configs[4]]
+    # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
 
 

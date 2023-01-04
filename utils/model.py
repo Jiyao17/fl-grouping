@@ -153,7 +153,7 @@ class SpeechCommand(nn.Module):
         self.conv4 = nn.Conv1d(2 * n_channel, 2 * n_channel, kernel_size=3)
         self.bn4 = nn.BatchNorm1d(2 * n_channel)
         self.pool4 = nn.MaxPool1d(4)
-        self.fc1 = nn.Linear(2 * n_channel, n_output)
+        self.fc = nn.Linear(2 * n_channel, n_output)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -170,7 +170,7 @@ class SpeechCommand(nn.Module):
         x = self.pool4(x)
         x = F.avg_pool1d(x, x.shape[-1])
         x = x.permute(0, 2, 1)
-        x = self.fc1(x)
+        x = self.fc(x)
         return F.log_softmax(x, dim=2)
 
 

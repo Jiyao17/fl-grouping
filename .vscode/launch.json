@@ -11,7 +11,8 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "python": "${command:python.interpreterPath}"
+            "python": "${command:python.interpreterPath}",
+            "env": {"CUDA_VISIBLE_DEVICES": "7"},
             
         }
     ]

@@ -43,12 +43,14 @@ class Config:
         RANDOM = 2
         CV_GREEDY = 3
         NONIID = 4
+        FEDCLAR = 5
 
     
     class TrainMethod(Enum):
         SGD = 1
         SCAFFOLD = 2
         FEDPROX = 3
+        FEDCLAR = 4
         
     class AggregationOption(Enum):
         WEIGHTED_AVERAGE = 1
@@ -56,7 +58,7 @@ class Config:
 
     def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
-        sampling_frac=0.2, budget=10**6,
+        sampling_frac=0.2, budget=10**6, FedCLAR_epoch=100,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
@@ -81,6 +83,7 @@ class Config:
         self.data_path = data_path
         self.budget = budget
         self.global_epoch_num = global_epoch_num
+        self.FedCLAR_epoch= FedCLAR_epoch
         self.group_epoch_num = group_epoch_num
         self.local_epoch_num = local_epoch_num
         self.lr_interval = lr_interval
@@ -416,9 +419,24 @@ class Client:
         # self.c_client = [param.zero_() for param in self.c_client]
         self.c_global: list[torch.Tensor] = [ param.clone().zero_().to(self.device) for param in self.model.parameters()]
 
-    def train(self):
+    def train(self, trans_learn: bool=False):
         self.model.to(self.device)
         self.model.train()
+
+        # transfer learning stage
+        if trans_learn:
+            params = self.model.parameters()
+            params_num = len(params)
+            for i, param in enumerate(params):
+                # freeze all layers except the last one
+                if i < params_num - 1:
+                    param.requires_grad = False
+        
+        self.optimizer.
+        train_params = filter(lambda p: p.requires_grad, self.optimizer)
+
+
+            
 
 
         for i, param in enumerate(self.model.parameters()):
@@ -450,7 +468,6 @@ class Client:
                     # X.to(self.device)
                     # X = X.to(self.device)
 
-
                 y = self.model(X)
                 if self.task_name == TaskName.SPEECHCOMMAND:
                     loss = self.loss_fn(y.squeeze(1), label)
@@ -462,6 +479,8 @@ class Client:
                 if self.train_method == Config.TrainMethod.FEDPROX:
                     for w_t, w in zip(self.temp_model_params, self.model.parameters()):
                         loss += 1 / 2. * torch.pow(torch.norm(w.data - w_t.data), 2)
+
+                
 
                 self.train_loss += loss.item()
 
@@ -586,8 +605,9 @@ class GFL:
         # may change over iterations
         self.selected_groups: np.ndarray = None
 
-
-        self.group()
+        if self.config.grouping_mode != Config.GroupingMode.FEDCLAR:
+            # for FedCLAR, grouping is done in the specific iteration
+            self.group()
         pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".pdf"
         show_num = 10
         if show_num > len(self.groups):
@@ -769,6 +789,23 @@ class GFL:
             
             return costs
 
+        def __FedCLAR_clustering(server_clients_arg: 'list[int]', th: float):
+            def _sim_mat(models) -> np.ndarray:
+                # models: 'list[nn.Module]' = [ self.clients[client_idx].model for client_idx in clients]
+                classifiers = [ model.parameters()[-1].detach().cpu().numpy() for model in models]
+                sim_mat = np.zeros((len(clients), len(clients)))
+                for i in range(len(clients)):
+                    for j in range(len(clients)):
+                        # cosine similarity
+                        sim_mat[i,j] = np.dot(classifiers[i], classifiers[j]) / (np.linalg.norm(classifiers[i]) * np.linalg.norm(classifiers[j]))
+                
+            group_num_start = len(self.groups)
+            clients = copy.deepcopy(server_clients_arg)
+            sim_mat = _sim_mat(clients)
+            
+
+
+
         self.groups = []
         self.groups_cvs = []
 
@@ -782,6 +819,10 @@ class GFL:
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
                 self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
                 self.servers_groups = copy.deepcopy(self.servers_clients)
+            elif self.config.grouping_mode == Config.GroupingMode.FEDCLAR:
+                __FedCLAR_clustering()
+            else:
+                raise NotImplementedError
 
         self.groups_data_nums_arr = np.array(self.groups_data_nums)
         self.groups_weights_arr = self.groups_data_nums / np.sum(self.groups_data_nums)
@@ -1001,6 +1042,10 @@ class GFL:
         costs = []
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
+            if self.config.GroupingMode == Config.GroupingMode.FEDCLAR:
+                if i == self.config.FedCLAR_epoch:
+
+                    
             # lr decay
             if i % self.config.lr_interval == 0:
                 if self.config.task_name == TaskName.CIFAR:
