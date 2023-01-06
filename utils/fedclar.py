@@ -532,7 +532,7 @@ class Client:
     #     training_cost = 0.00495469 * dataset_len + 0.01023199
     #     return training_cost
 
-class GFL:
+class FedCLAR:
 
     def set_seed(self, seed=None):
         if seed is None:
@@ -607,7 +607,6 @@ class GFL:
         self.sampling_num = 0
         # may change over iterations
         self.selected_groups: np.ndarray = None
-
 
         self.group()
         pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".pdf"
@@ -976,6 +975,7 @@ class GFL:
         selected_groups_sizes_by_data = self.groups_data_nums_arr[selected_groups]
         selected_groups_data_sum = np.sum(selected_groups_sizes_by_data)
         total_data_sum = np.sum(self.groups_data_nums_arr)
+        selected_groups_models = []
 
         # init state dict
         client0 = self.clients[self.groups[selected_groups[0]][0]]
@@ -1019,6 +1019,60 @@ class GFL:
 
         
         self.model.load_state_dict(state_dict_avg)
+
+    def global_aggregate_by_clients(self, selected_groups: 'list[int]'):
+        """
+        under development
+        aggregate model from selected groups
+        """
+        # selected_groups_sizes_by_data = self.groups_data_nums_arr[selected_groups]
+        # selected_groups_data_sum = np.sum(selected_groups_sizes_by_data)
+        # total_data_sum = np.sum(self.groups_data_nums_arr)
+
+        # # init state dict
+        client0 = self.clients[self.groups[selected_groups[0]][0]]
+        state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
+        self.c_global = [ c_d.clone().zero_().detach().data for c_d in client0.c_delta]
+        for key in state_dict_avg.keys():
+            state_dict_avg[key] = 0.0
+
+
+        weights = self.clients_weights
+
+        if self.config.aggregation_option == Config.AggregationOption.UNBIASED:
+            weights = selected_groups_sizes_by_data / total_data_sum
+
+            unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
+        # factor_scale = 10.0
+        # unbiased_factor[ unbiased_factor < 1/factor_scale ] = 1/factor_scale
+        # unbiased_factor[ unbiased_factor > factor_scale ] = factor_scale
+            weights = np.divide(weights, unbiased_factor)
+
+            # if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
+                # numerical adjustment, make training stable
+            weights = weights / np.sum(weights)
+        
+        print(f"weights: {weights}")
+                # print(f"unbiased weights: {weights[:10]}")
+
+        # get average state dict
+        for weight, group_index in zip(weights, selected_groups):
+            repr_client = self.clients[self.groups[group_index][0]]
+            state_dict = repr_client.model.state_dict()
+
+            for key in state_dict_avg.keys():
+                state_dict_avg[key] += state_dict[key] * weight
+
+            # average delta drift in SCAFFOLD
+            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                # delta drift in SCAFFOLD
+                for i, c_d in enumerate(self.c_global):
+                    self.c_global[i] += repr_client.c_client[i] * weight
+
+        
+        self.model.load_state_dict(state_dict_avg)
+
+
 
     def calc_selected_groups_cost(self, selected_groups: 'list[int]'):
         """
@@ -1081,10 +1135,19 @@ class GFL:
                 if i > self.config.FedCLAR_cluster_epoch:
                     if i > self.config.FedCLAR_tl_epoch:
                         # transfer learning training
-                        pass
+                        # all devices train individually
+                        for group_index in selected_groups:
+                            for i in range(self.config.group_epoch_num):
+                                for client_index in self.groups[group_index]:
+                                    self.clients[client_index].train(trans_learn=True)
                     else:
                         # clustered training
-                        pass
+                        # only distribute global model to the unclustered clients
+                        self.global_distribute([selected_groups[-1]])
+                        # clustered training and aggregation
+                        self.global_train(selected_groups)
+                        self.global_aggregate(selected_groups)
+
             else:
                 self.global_distribute(selected_groups)
                 self.global_train(selected_groups)

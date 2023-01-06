@@ -13,7 +13,7 @@ base_config = Config(
     task_name=TaskName.CIFAR,
     server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**8,
-    global_epoch_num=1000, FedCLAR_epoch=100,
+    global_epoch_num=1000, FedCLAR_cluster_epoch=100,
     # the following line may vary
     group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
@@ -148,6 +148,8 @@ comp_base.log_interval = 5
 comp_base.budget = 1.1e6
 
 FedCLAR = copy.deepcopy(comp_base)
+FedCLAR.FedCLAR_cluster_epoch = 30
+FedCLAR.FedCLAR_tl_epoch = 50
 FedCLAR.train_method = Config.TrainMethod.FEDCLAR
 FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
 FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
