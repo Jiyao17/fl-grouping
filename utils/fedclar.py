@@ -795,6 +795,7 @@ class FedCLAR:
         def __FedCLAR_clustering(server_clients_arg: 'list[int]', server_no, th: float):
             def _sim_mat(model_sds: 'dict[str, Tensor]') -> np.ndarray:
                 # models: 'list[nn.Module]' = [ self.clients[client_idx].model for client_idx in clients]
+                # print(model_sds[0].keys())
                 weights = [ sd['fc.weight'].detach().cpu().numpy().flatten() for sd in model_sds]
                 biases = [ sd['fc.bias'].detach().cpu().numpy().flatten() for sd in model_sds]
                 # concatenate corresponding weight and bias
@@ -808,18 +809,33 @@ class FedCLAR:
             
                 return sim_mat
 
-            def _merge_model_sds(sds: 'list[dict[str, torch.Tensor]]') -> 'dict[str, torch.Tensor]':
-                num_sds = len(sds)
-                # sd_merged = copy.deepcopy(sds[0])
-                sd_merged = {}
-                for key in sd_merged.keys():
-                    sd_merged[key] = 0
-                    # sd_merged[key] = sd_merged[key].to(sds[i][key].device)
-                    for i in range(num_sds):
-                        sd_merged[key] += sds[i][key]
-                    sd_merged[key] /= num_sds * 1.0
+            def _merge_model_sds(state_dicts: 'list[dict[str, torch.Tensor]]', weights: 'list[float]') -> 'dict[str, torch.Tensor]':
+                # num_sds = len(sds)
+                # # sd_merged = copy.deepcopy(sds[0])
+                # sd_merged = {}
+                # for key in sd_merged.keys():
+                #     sd_merged[key] = 0
+                #     # sd_merged[key] = sd_merged[key].to(sds[i][key].device)
+                #     for i in range(num_sds):
+                #         sd_merged[key] += sds[i][key]
+                #     sd_merged[key] /= num_sds * 1.0
 
-                return sd_merged
+                # return sd_merged
+                # weight = 1.0 / len(state_dicts)
+                avg_state_dict = copy.deepcopy(state_dicts[0])
+                for key in avg_state_dict.keys():
+                    avg_state_dict[key] = avg_state_dict[key] * weights[0]
+
+                
+
+                for key in avg_state_dict.keys():
+                    for i in range(1, len(state_dicts)):
+                        avg_state_dict[key] = avg_state_dict[key].to(self.config.device)
+                        state_dicts[i][key] = state_dicts[i][key].to(self.config.device)
+
+                        avg_state_dict[key] += state_dicts[i][key] * weights[i]
+                
+                return avg_state_dict
 
             group_num_start = len(self.groups)
             clients = copy.deepcopy(server_clients_arg)
@@ -829,9 +845,14 @@ class FedCLAR:
 
             while True:
                 # update i, j
+                if len(clusters) == 20:
+                    a = 1
                 sim_mat = _sim_mat(model_sds)
-                min_index = np.argmin(sim_mat)
-                i, j = min_index // len(clients), min_index % len(clients)
+                for i in range(len(clusters)):
+                    sim_mat[i][i] = -1
+                max_index = np.argmax(sim_mat)
+                i, j = max_index // len(clusters), max_index % len(clusters)
+                print("max sim: ", sim_mat[i,j])
 
                 if i != j and sim_mat[i,j] >= th:
                     # set i < j
@@ -842,7 +863,9 @@ class FedCLAR:
                     model_sd_i = model_sds.pop(i)
                     model_sd_j = model_sds.pop(j-1)
 
-                    merged_sd = _merge_model_sds([model_sd_i, model_sd_j])
+                    total_num = len(cluster_i) + len(cluster_j)
+                    weights = [ len(cluster_i) / total_num, len(cluster_j) / total_num]
+                    merged_sd = _merge_model_sds([model_sd_i, model_sd_j], weights)
                     merged_cluster = cluster_i + cluster_j
 
                     clusters.append(merged_cluster)
@@ -856,9 +879,9 @@ class FedCLAR:
                     # merge unclustered clients
                     clustered_model_sds = [ model_sd for i, model_sd in enumerate(model_sds) if i not in not_clustered_clients]
                     clusters = [ cluster for i, cluster in enumerate(clusters) if i not in not_clustered_clients]
-                    clusters.append(not_clustered_clients)
-                    merged_sd = _merge_model_sds([model_sds[i] for i in not_clustered_clients])
-                    clustered_model_sds.append(merged_sd)
+                    # clusters.append(not_clustered_clients)
+                    # merged_sd = _merge_model_sds([model_sds[i] for i in not_clustered_clients])
+                    # clustered_model_sds.append(merged_sd)
 
                     # update groups
                     self.groups += clusters
@@ -1133,6 +1156,9 @@ class FedCLAR:
                     # clustering
                     # switch to FedCLAR
                     self.config.grouping_mode = Config.GroupingMode.FEDCLAR
+                    # individual train for clustering
+                    for client in self.clients:
+                        client.train()
                     self.group()
                     print("FedCLAR clustering done")
                     print("groups number", len(self.groups))
