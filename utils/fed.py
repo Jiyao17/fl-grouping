@@ -853,7 +853,7 @@ class GFL:
         """
         probs: np.ndarray = None
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
-            probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
+            probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float32)
         elif self.config.selection_mode == Config.SelectionMode.PROB_RCV:
             probs = 1.0 / self.groups_cvs_arr
             # np.multiply(probs, self.groups_data_nums_arr, out=probs)

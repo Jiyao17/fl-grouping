@@ -177,7 +177,7 @@ class DatasetPartitioner:
         # broadcast
         distributions: np.ndarray = np.multiply(subsets_sizes, probs)
         distributions.round()
-        distributions = distributions.astype(np.int)
+        distributions = distributions.astype(np.int32)
 
         # print("distributions: ", distributions[:5])
 

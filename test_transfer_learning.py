@@ -14,6 +14,9 @@ loss = nn.CrossEntropyLoss()
 
 # print(net.state_dict().keys())
 print("before training=====================")
+# params = [p for p in net.parameters() if p.requires_grad]
+print(net.state_dict().keys())
+# print(params[-2])
 print(net.convs[8].conv2.weight[-1, -1, -1])
 print(net.fc.bias)
 

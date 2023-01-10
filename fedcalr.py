@@ -6,7 +6,7 @@ import random
 import copy
 from multiprocessing import Process
 
-from utils.fed import GFL, Config
+from utils.fedclar import FedCLAR, Config
 from utils.data import TaskName
 
 base_config = Config(
@@ -147,12 +147,13 @@ comp_base.local_epoch_num = 2
 comp_base.log_interval = 5
 comp_base.budget = 1.1e6
 
-FedCLAR = copy.deepcopy(comp_base)
-FedCLAR.FedCLAR_cluster_epoch = 50
-FedCLAR.FedCLAR_tl_epoch = 200
-FedCLAR.train_method = Config.TrainMethod.FEDCLAR
-FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
-FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
+fedclar = copy.deepcopy(comp_base)
+fedclar.FedCLAR_cluster_epoch = 300
+fedclar.FedCLAR_tl_epoch = 20
+fedclar.train_method = Config.TrainMethod.FEDCLAR
+fedclar.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
+fedclar.selection_mode = Config.SelectionMode.RANDOM
+fedclar.result_dir = "./exp_data/grouping/fedclar/"
 
 
 FedProx = copy.deepcopy(comp_base)
@@ -176,8 +177,10 @@ fedprox_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
 fedprox_cvg_cvs.train_method = Config.TrainMethod.FEDPROX
 fedprox_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/fedprox/"
 
-audio_configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ]
 
+
+
+audio_configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ]
 for i, config in enumerate(audio_configs):
     audio_configs[i] = copy.deepcopy(config)
     audio_configs[i].task_name = TaskName.SPEECHCOMMAND
@@ -201,10 +204,17 @@ for i, config in enumerate(audio_configs):
     audio_configs[i].test_mark = "_sc"
 
 def process_run(config: Config):
-    gfl = GFL(config)
+    gfl = FedCLAR(config)
     gfl.run()
 
-    
+
+fedclar_debug = copy.deepcopy(fedclar)
+fedclar_debug.server_num = 1
+fedclar_debug.client_num = 20
+fedclar_debug.data_num_range = (100, 101)
+fedclar_debug.FedCLAR_cluster_epoch = 1
+fedclar_debug.FedCLAR_tl_epoch = 200
+fedclar_debug.FedCLAR_th = 0.005
 
 if __name__ == "__main__":
     # gfl = GFL(debug)
@@ -223,11 +233,11 @@ if __name__ == "__main__":
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
     CUDAS = [2, 3, 6, 7]
-    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, FedCLAR]
+    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, fedclar]
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [configs[6]]
+    configs = [fedclar_debug]
 
 
     # configs = [audio_configs[0], audio_configs[3]]
@@ -255,7 +265,7 @@ if __name__ == "__main__":
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1
         # p.start()
-        gfl = GFL(config)
+        gfl = FedCLAR(config)
         gfl.run()
 
 

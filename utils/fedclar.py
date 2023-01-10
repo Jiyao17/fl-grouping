@@ -58,13 +58,13 @@ class Config:
 
     def __init__(self, task_name=TaskName.CIFAR,
         server_num=10, client_num=500, data_num_range=(10, 50), alpha=0.1,
-        sampling_frac=0.2, budget=10**6, FedCLAR_cluster_epoch=30, FedCLAR_tl_epoch=50,
+        sampling_frac=0.2, budget=10**6, FedCLAR_cluster_epoch=30, FedCLAR_tl_epoch=50, FedCLAR_th=0.1,
         global_epoch_num=500, group_epoch_num=1, local_epoch_num=5,
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
         grouping_mode=GroupingMode.CV_GREEDY, max_group_cv=1.0, min_group_size=10,
         # partition_mode=PartitionMode.IID,
-        selection_mode=SelectionMode.RANDOM, aggregation_option=7,
+        selection_mode=SelectionMode.RANDOM, aggregation_option=AggregationOption.WEIGHTED_AVERAGE,
         device="cuda", 
         train_method = TrainMethod.SGD,
         result_dir="./exp_data/",
@@ -85,13 +85,13 @@ class Config:
         self.global_epoch_num = global_epoch_num
         self.FedCLAR_cluster_epoch= FedCLAR_cluster_epoch
         self.FedCLAR_tl_epoch = FedCLAR_tl_epoch
+        self.FedCLAR_th = FedCLAR_th
         self.group_epoch_num = group_epoch_num
         self.local_epoch_num = local_epoch_num
         self.lr_interval = lr_interval
         self.lr = lr
         self.batch_size = local_batch_size
         self.device = device
-        # SCAFFOLD or not
         self.train_method = train_method
 
         self.selection_mode = selection_mode
@@ -428,14 +428,17 @@ class Client:
         # freeze all layers except the last one
         if trans_learn:
             params = self.model.parameters()
-            params_num = len(params)
-            for i, param in enumerate(params):
-                # freeze all layers except the last one
-                if i < params_num - 1:
-                    param.requires_grad = False
+            self.model.fc.requires_grad = False
+            # params_num = 0
+            # for param in params:
+            #     params_num += 1
+            # for i, param in enumerate(params):
+            #     # freeze all layers except the last one
+            #     if i < params_num - 1:
+            #         param.requires_grad = False
         
             train_params = filter(lambda p: p.requires_grad, params)
-            self.optimizer = torch.optim.SGD(train_params, lr=self.config.lr, momentum=0.9, weight_decay=0.0001) #
+            self.optimizer = torch.optim.SGD(train_params, lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         for i, param in enumerate(self.model.parameters()):
             self.temp_model_params[i] = param.detach().data
@@ -514,8 +517,7 @@ class Client:
         
         # unfreeze all layers
         if trans_learn:
-            for param in self.model.parameters():
-                param.requires_grad = True
+            self.model.fc.requires_grad = True
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
 
         return self.train_loss, self.grad
@@ -790,24 +792,81 @@ class FedCLAR:
             
             return costs
 
-        def __FedCLAR_clustering(server_clients_arg: 'list[int]', th: float):
-            def _sim_mat(models) -> np.ndarray:
+        def __FedCLAR_clustering(server_clients_arg: 'list[int]', server_no, th: float):
+            def _sim_mat(model_sds: 'dict[str, Tensor]') -> np.ndarray:
                 # models: 'list[nn.Module]' = [ self.clients[client_idx].model for client_idx in clients]
-                classifiers = [ model.parameters()[-1].detach().cpu().numpy() for model in models]
-                sim_mat = np.zeros((len(clients), len(clients)))
-                for i in range(len(clients)):
-                    for j in range(len(clients)):
+                weights = [ sd['fc.weight'].detach().cpu().numpy().flatten() for sd in model_sds]
+                biases = [ sd['fc.bias'].detach().cpu().numpy().flatten() for sd in model_sds]
+                # concatenate corresponding weight and bias
+                classifiers = [ np.concatenate((weights[i], biases[i])) for i in range(len(weights))]
+                print('cluster number: ', len(model_sds))
+                sim_mat = np.zeros((len(model_sds), len(model_sds)))
+                for i in range(len(model_sds)):
+                    for j in range(len(model_sds)):
                         # cosine similarity
-                        sim_mat[i,j] = np.dot(classifiers[i], classifiers[j]) / (np.linalg.norm(classifiers[i]) * np.linalg.norm(classifiers[j]))
-                
+                        sim_mat[i][j] = np.dot(classifiers[i], classifiers[j]) / (np.linalg.norm(classifiers[i]) * np.linalg.norm(classifiers[j]))
+            
+                return sim_mat
+
+            def _merge_model_sds(sds: 'list[dict[str, torch.Tensor]]') -> 'dict[str, torch.Tensor]':
+                num_sds = len(sds)
+                # sd_merged = copy.deepcopy(sds[0])
+                sd_merged = {}
+                for key in sd_merged.keys():
+                    sd_merged[key] = 0
+                    # sd_merged[key] = sd_merged[key].to(sds[i][key].device)
+                    for i in range(num_sds):
+                        sd_merged[key] += sds[i][key]
+                    sd_merged[key] /= num_sds * 1.0
+
+                return sd_merged
+
             group_num_start = len(self.groups)
             clients = copy.deepcopy(server_clients_arg)
-            sim_mat = _sim_mat(clients)
-            
+            clusters = [ [i] for i in range(len(clients)) ] # each client is a cluster
+            model_sds = [ self.clients[client_idx].model.state_dict() for client_idx in clients]
+            # sim_mat = _sim_mat(model_sds)
 
+            while True:
+                # update i, j
+                sim_mat = _sim_mat(model_sds)
+                min_index = np.argmin(sim_mat)
+                i, j = min_index // len(clients), min_index % len(clients)
 
+                if i != j and sim_mat[i,j] >= th:
+                    # set i < j
+                    if i > j:
+                        i, j = j, i
+                    cluster_i = clusters.pop(i)
+                    cluster_j = clusters.pop(j-1)
+                    model_sd_i = model_sds.pop(i)
+                    model_sd_j = model_sds.pop(j-1)
 
-        self.groups = []
+                    merged_sd = _merge_model_sds([model_sd_i, model_sd_j])
+                    merged_cluster = cluster_i + cluster_j
+
+                    clusters.append(merged_cluster)
+                    model_sds.append(merged_sd)
+                else:
+                    not_clustered_clients = []
+                    for i, cluster in enumerate(clusters):
+                        if len(cluster) == 1:
+                            not_clustered_clients.append(cluster[0])
+                    
+                    # merge unclustered clients
+                    clustered_model_sds = [ model_sd for i, model_sd in enumerate(model_sds) if i not in not_clustered_clients]
+                    clusters = [ cluster for i, cluster in enumerate(clusters) if i not in not_clustered_clients]
+                    clusters.append(not_clustered_clients)
+                    merged_sd = _merge_model_sds([model_sds[i] for i in not_clustered_clients])
+                    clustered_model_sds.append(merged_sd)
+
+                    # update groups
+                    self.groups += clusters
+                    self.groups_data_nums += [ sum([self.clients_data_nums[client_idx] for client_idx in cluster]) for cluster in clusters ]
+                    self.groups_cvs += [ self.__calc_group_cv(cluster) for cluster in clusters ]
+                    self.servers_clients[server_no] = [ group_num_start + i for i in range(len(clusters)) ]
+
+        self.groups = [] 
         self.groups_cvs = []
 
         for i, server_clients in enumerate(self.servers_clients):
@@ -821,7 +880,7 @@ class FedCLAR:
                 self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
                 self.servers_groups = copy.deepcopy(self.servers_clients)
             elif self.config.grouping_mode == Config.GroupingMode.FEDCLAR:
-                __FedCLAR_clustering()
+                __FedCLAR_clustering(server_clients, i, self.config.FedCLAR_th)
             else:
                 raise NotImplementedError
 
@@ -852,7 +911,7 @@ class FedCLAR:
         """
         probs: np.ndarray = None
         if self.config.selection_mode == Config.SelectionMode.RANDOM:
-            probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float)
+            probs = np.full((len(self.groups), ), 1.0/len(self.groups), dtype=np.float32)
         elif self.config.selection_mode == Config.SelectionMode.PROB_RCV:
             probs = 1.0 / self.groups_cvs_arr
             # np.multiply(probs, self.groups_data_nums_arr, out=probs)
@@ -1022,57 +1081,28 @@ class FedCLAR:
 
     def global_aggregate_by_clients(self, selected_groups: 'list[int]'):
         """
-        under development
-        aggregate model from selected groups
+        only used for FedCLAR
         """
-        # selected_groups_sizes_by_data = self.groups_data_nums_arr[selected_groups]
-        # selected_groups_data_sum = np.sum(selected_groups_sizes_by_data)
-        # total_data_sum = np.sum(self.groups_data_nums_arr)
 
         # # init state dict
         client0 = self.clients[self.groups[selected_groups[0]][0]]
         state_dict_avg = copy.deepcopy(client0.model.state_dict()) 
-        self.c_global = [ c_d.clone().zero_().detach().data for c_d in client0.c_delta]
+        # self.c_global = [ c_d.clone().zero_().detach().data for c_d in client0.c_delta]
         for key in state_dict_avg.keys():
             state_dict_avg[key] = 0.0
 
-
         weights = self.clients_weights
 
-        if self.config.aggregation_option == Config.AggregationOption.UNBIASED:
-            weights = selected_groups_sizes_by_data / total_data_sum
-
-            unbiased_factor = (self.probs_arr[selected_groups] * len(self.selected_groups))
-        # factor_scale = 10.0
-        # unbiased_factor[ unbiased_factor < 1/factor_scale ] = 1/factor_scale
-        # unbiased_factor[ unbiased_factor > factor_scale ] = factor_scale
-            weights = np.divide(weights, unbiased_factor)
-
-            # if self.config.aggregation_option.value >= Config.AggregationOption.NUMERICAL_REGULARIZATION.value:
-                # numerical adjustment, make training stable
-            weights = weights / np.sum(weights)
-        
-        print(f"weights: {weights}")
-                # print(f"unbiased weights: {weights[:10]}")
-
         # get average state dict
-        for weight, group_index in zip(weights, selected_groups):
-            repr_client = self.clients[self.groups[group_index][0]]
-            state_dict = repr_client.model.state_dict()
+        for group in selected_groups:
+            for client_index in self.groups[group]:
+                weight = weights[client_index]
+                state_dict = self.clients[client_index].model.state_dict()
 
-            for key in state_dict_avg.keys():
-                state_dict_avg[key] += state_dict[key] * weight
-
-            # average delta drift in SCAFFOLD
-            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                # delta drift in SCAFFOLD
-                for i, c_d in enumerate(self.c_global):
-                    self.c_global[i] += repr_client.c_client[i] * weight
-
+                for key in state_dict_avg.keys():
+                    state_dict_avg[key] += state_dict[key] * weight
         
         self.model.load_state_dict(state_dict_avg)
-
-
 
     def calc_selected_groups_cost(self, selected_groups: 'list[int]'):
         """
@@ -1098,12 +1128,14 @@ class FedCLAR:
         costs = []
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
-            if self.config.TrainMethod == Config.TrainMethod.FEDCLAR:
+            if self.config.train_method == Config.TrainMethod.FEDCLAR:
                 if i == self.config.FedCLAR_cluster_epoch:
                     # clustering
                     # switch to FedCLAR
-                    self.config.GroupingMode = Config.GroupingMode.FEDCLAR
+                    self.config.grouping_mode = Config.GroupingMode.FEDCLAR
                     self.group()
+                    print("FedCLAR clustering done")
+                    print("groups number", len(self.groups))
                 
                     
             # lr decay
@@ -1137,16 +1169,30 @@ class FedCLAR:
                         # transfer learning training
                         # all devices train individually
                         for group_index in selected_groups:
+                            if group_index == len(self.groups) - 1:
+                                # only send global model to unclustered clients
+                                self.global_distribute([group_index])
+                            
+                            # all clients in selected groups train individually
                             for i in range(self.config.group_epoch_num):
                                 for client_index in self.groups[group_index]:
                                     self.clients[client_index].train(trans_learn=True)
+
+                        # aggregate for global model
+                        self.global_aggregate_by_clients(selected_groups)
+
                     else:
                         # clustered training
                         # only distribute global model to the unclustered clients
-                        self.global_distribute([selected_groups[-1]])
+                        self.global_distribute([len(self.groups) - 1])
                         # clustered training and aggregation
                         self.global_train(selected_groups)
                         self.global_aggregate(selected_groups)
+                else:
+                    # normal hierarchical training
+                    self.global_distribute(selected_groups)
+                    self.global_train(selected_groups)
+                    self.global_aggregate(selected_groups)
 
             else:
                 self.global_distribute(selected_groups)
