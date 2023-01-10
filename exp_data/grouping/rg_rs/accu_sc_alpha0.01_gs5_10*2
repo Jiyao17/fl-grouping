@@ -1,3 +1,0 @@
-
-config:{'task_name': <TaskName.SPEECHCOMMAND: 2>, 'server_num': 3, 'client_num': 300, 'data_num_range': (20, 201), 'alpha': (0.01, 0.01), 'sampling_frac': 0.2, 'data_path': './data/', 'budget': 1100000.0, 'global_epoch_num': 1000, 'group_epoch_num': 10, 'local_epoch_num': 2, 'lr_interval': 20, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'train_method': <TrainMethod.SGD: 1>, 'selection_mode': <SelectionMode.RANDOM: 10>, 'aggregation_option': <AggregationOption.UNBIASED: 2>, 'grouping_mode': <GroupingMode.RANDOM: 2>, 'max_group_cv': 1.0, 'min_group_size': 5, 'log_interval': 1, 'result_dir': './exp_data/grouping/rg_rs/', 'test_mark': '_sc_alpha0.01_gs5_10*2', 'comment': ''}
-0.03967073291679064 0.04076167807200238 0.05147277595953585 

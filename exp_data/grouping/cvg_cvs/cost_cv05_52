@@ -1,3 +1,0 @@
-
-config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 5, 'client_num': 1000, 'data_num_range': (10, 51), 'alpha': 0.1, 'sampling_frac': 0.2, 'data_path': './data/', 'global_epoch_num': 500, 'group_epoch_num': 5, 'local_epoch_num': 2, 'lr_interval': 1000, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'train_method': <TrainMethod.SGD: 1>, 'selection_mode': <SelectionMode.PROB_RCV_COST: 5>, 'grouping_mode': <GroupingMode.CV_GREEDY: 3>, 'max_group_cv': 0.5, 'min_group_size': 5, 'log_interval': 5, 'result_dir': './exp_data/grouping/cvg_cvs/', 'test_mark': '_cv05_52', 'comment': ''}
-37227.991197300005 74147.2198719 111395.583002 148046.95609300002 185150.17763690004 223363.12330650003 259759.29786180003 297478.8047083 334136.61698289996 

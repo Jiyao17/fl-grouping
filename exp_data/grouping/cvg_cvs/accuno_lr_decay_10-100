@@ -1,3 +1,0 @@
-
-config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 5, 'client_num': 500, 'data_num_range': (10, 101), 'alpha': 0.1, 'sampling_frac': 0.2, 'data_path': './data/', 'global_epoch_num': 500, 'group_epoch_num': 5, 'local_epoch_num': 1, 'lr_interval': 1000, 'lr': 0.01, 'batch_size': 10, 'device': 'cuda', 'selection_mode': <SelectionMode.PROB_ESRCV: 4>, 'grouping_mode': <GroupingMode.CV_GREEDY: 3>, 'max_cv': 0.1, 'min_group_size': 10, 'log_interval': 5, 'result_dir': './exp_data/grouping/cvg_cvs/', 'test_mark': 'no_lr_decay_10-100', 'comment': 'no lr decay, cvgcvs 10-100'}
-0.2126 0.2397 0.2519 0.2768 0.283 0.2874 0.2972 0.2921 0.2989 0.3074 0.3097 0.3063 0.3195 0.3205 0.3241 
