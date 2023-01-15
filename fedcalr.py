@@ -212,12 +212,21 @@ fedclar_debug = copy.deepcopy(fedclar)
 fedclar_debug.task_name = TaskName.CIFAR
 fedclar_debug.server_num = 1
 fedclar_debug.client_num = 100
-fedclar_debug.data_num_range = (60, 61)
-fedclar_debug.batch_size = 20
-fedclar_debug.FedCLAR_cluster_epoch = 5
+fedclar_debug.data_num_range = (20, 201)
+fedclar_debug.batch_size = 10
+fedclar_debug.FedCLAR_cluster_epoch = 100
 fedclar_debug.FedCLAR_tl_epoch = 200
-fedclar_debug.FedCLAR_th = 0.05
-fedclar_debug.lr = 0.1
+fedclar_debug.FedCLAR_th = 0.5
+fedclar_debug.lr = 0.01
+# fedclar_debug.task_name = TaskName.CIFAR
+# fedclar_debug.server_num = 1
+# fedclar_debug.client_num = 100
+# fedclar_debug.data_num_range = (20, 201)
+# fedclar_debug.batch_size = 10
+# fedclar_debug.FedCLAR_cluster_epoch = 2
+# fedclar_debug.FedCLAR_tl_epoch = 200
+# fedclar_debug.FedCLAR_th = 0.995
+# fedclar_debug.lr = 0.1
 
 if __name__ == "__main__":
     # gfl = GFL(debug)

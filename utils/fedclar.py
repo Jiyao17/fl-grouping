@@ -845,16 +845,22 @@ class FedCLAR:
 
             while True:
                 # update i, j
-                if len(clusters) == 20:
+                if len(clusters) == 50:
                     a = 1
                 sim_mat = _sim_mat(model_sds)
                 for i in range(len(clusters)):
                     sim_mat[i][i] = -1
                 max_index = np.argmax(sim_mat)
                 i, j = max_index // len(clusters), max_index % len(clusters)
-                print("max sim: ", sim_mat[i,j])
-
-                if i != j and sim_mat[i,j] >= th:
+                lens = [ len(cluster) for cluster in clusters]
+                max_len = max(lens)
+                with open('min_sim.txt', 'a') as f:
+                    f.write( str(sim_mat[i][j]) + ", " + str(len(clusters)) + ", " + str(max_len) + "\n")
+                if len(clusters) <= 2:
+                    error_msg = "too few clusters! th=" + str(th) + ", cluster_num=" + str(len(clusters))
+                    raise Exception(error_msg)
+                # if sim_mat[i,j] >= th:
+                if len(clusters) >= len(clients) / 5 and sim_mat[i, j] >= th:
                     # set i < j
                     if i > j:
                         i, j = j, i
@@ -879,6 +885,10 @@ class FedCLAR:
                     # merge unclustered clients
                     clustered_model_sds = [ model_sd for i, model_sd in enumerate(model_sds) if i not in not_clustered_clients]
                     clusters = [ cluster for i, cluster in enumerate(clusters) if i not in not_clustered_clients]
+                    # send cluster models to clients
+                    for cluster, model_sd in zip(clusters, clustered_model_sds):
+                        for client_idx in cluster:
+                            self.clients[client_idx].model.load_state_dict(model_sd)
                     # clusters.append(not_clustered_clients)
                     # merged_sd = _merge_model_sds([model_sds[i] for i in not_clustered_clients])
                     # clustered_model_sds.append(merged_sd)
@@ -888,6 +898,8 @@ class FedCLAR:
                     self.groups_data_nums += [ sum([self.clients_data_nums[client_idx] for client_idx in cluster]) for cluster in clusters ]
                     self.groups_cvs += [ self.__calc_group_cv(cluster) for cluster in clusters ]
                     self.servers_clients[server_no] = [ group_num_start + i for i in range(len(clusters)) ]
+                    
+                    break
 
         self.groups = [] 
         self.groups_cvs = []
@@ -915,6 +927,8 @@ class FedCLAR:
         avg_group_size = np.mean(self.groups_data_nums_arr)
         sampling_data_num = self.config.sampling_frac * np.sum(self.clients_data_nums)
         self.sampling_num = round(sampling_data_num / avg_group_size)
+        if self.sampling_num < 1:
+            self.sampling_num = 1
 
     def global_distribute(self, selected_groups: 'list[int]'):
         """
@@ -1157,8 +1171,9 @@ class FedCLAR:
                     # switch to FedCLAR
                     self.config.grouping_mode = Config.GroupingMode.FEDCLAR
                     # individual train for clustering
-                    for client in self.clients:
-                        client.train()
+                    for epoch in range(self.config.group_epoch_num):
+                        for client in self.clients:
+                            client.train()
                     self.group()
                     print("FedCLAR clustering done")
                     print("groups number", len(self.groups))
@@ -1190,8 +1205,8 @@ class FedCLAR:
             print('selected data num, cost:', data_selected, selected_cost)
 
             if self.config.train_method == Config.TrainMethod.FEDCLAR:
-                if i > self.config.FedCLAR_cluster_epoch:
-                    if i > self.config.FedCLAR_tl_epoch:
+                if i >= self.config.FedCLAR_cluster_epoch:
+                    if i >= self.config.FedCLAR_tl_epoch:
                         # transfer learning training
                         # all devices train individually
                         for group_index in selected_groups:
@@ -1209,8 +1224,8 @@ class FedCLAR:
 
                     else:
                         # clustered training
-                        # only distribute global model to the unclustered clients
-                        self.global_distribute([len(self.groups) - 1])
+                        # # only distribute global model to the unclustered clients
+                        # self.global_distribute([len(self.groups) - 1])
                         # clustered training and aggregation
                         self.global_train(selected_groups)
                         self.global_aggregate(selected_groups)
@@ -1232,6 +1247,8 @@ class FedCLAR:
             # print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
             # print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
             # data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
+            if i == self.config.FedCLAR_cluster_epoch:
+                cur_cost += np.sum(self.groups_costs_arr)
             cur_cost += selected_cost
 
 
