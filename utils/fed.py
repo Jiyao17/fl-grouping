@@ -42,7 +42,8 @@ class Config:
         NONE = 1
         RANDOM = 2
         CV_GREEDY = 3
-        NONIID = 4
+        OUEA = 4
+        NONIID = 5
 
     
     class TrainMethod(Enum):
@@ -769,6 +770,53 @@ class GFL:
             
             return costs
 
+        def __OUEA_grouping(server_clients_arg: 'list[int]', server_num, cluster_num=5, group_num=20):
+            def kmeans_clustering(clients, cluster_num) -> 'list[list[int]]':
+                # init without checking lengths
+                clusters: 'list[list[int]]' = [ [clients[i], ] for i in range(cluster_num) ]
+                centers = [ self.distributions[clients[i]] for i in range(cluster_num) ]
+
+                i = 0
+                # k means does not guarantee convergence, so set the iter num = 1000
+                # it should be sufficient when client num = 100
+                while i < 1000:
+                    for client in clients:
+                        distances = [ np.linalg.norm(self.distributions[client] - center) for center in centers]
+                        closest_center = np.argmin(distances)
+                        clusters[closest_center].append(client)
+                    
+                    new_centers = []
+                    for cluster in clusters:
+                        cluster_vecs = [self.distributions[client_idx] for client_idx in cluster]
+                        new_center = np.mean(cluster_vecs, axis=0)
+                        new_centers.append(new_center)
+                    clusters = new_centers
+
+                    i += 0
+
+                return clusters
+            """
+            cluster_num: distribution num in OUEA
+            group_num: edge num in OUEA, group num in G-HFL
+            """
+            # divide similar clients (in terms of data distribution) into the same groups (in OUEA)
+            server_clients = copy.deepcopy(server_clients_arg)
+            print("start k means clustering in OUEA.")
+            clusters = kmeans_clustering(server_clients, cluster_num=5)
+            print("k means clustering in OUEA done.")
+            group_num_start = len(self.groups)
+
+            # use equal assign algorithm in OUEA to distribute a group to edges (groups in G-HFL)
+            groups = [ [] for _ in range(group_num)]
+            for group in groups:
+                for cluster in clusters:
+                    group.append(cluster.pop())
+
+            self.groups += groups
+            self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
+            # self.groups_cvs += []
+            self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
+
         self.groups = []
         self.groups_cvs = []
 
@@ -777,6 +825,8 @@ class GFL:
                 __CV_greedy_grouping(server_clients, i, self.config.max_group_cv, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
                 __random_grouping(server_clients, i, self.config.min_group_size)
+            elif self.config.grouping_mode == Config.GroupingMode.OUEA:
+                __OUEA_grouping(server_clients, i, )
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
