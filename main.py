@@ -13,7 +13,7 @@ base_config = Config(
     task_name=TaskName.CIFAR,
     server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**8,
-    global_epoch_num=1000, FedCLAR_cluster_epoch=100,
+    global_epoch_num=1000, 
     # the following line may vary
     group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
@@ -147,12 +147,12 @@ comp_base.local_epoch_num = 2
 comp_base.log_interval = 5
 comp_base.budget = 1.1e6
 
-FedCLAR = copy.deepcopy(comp_base)
-FedCLAR.FedCLAR_cluster_epoch = 50
-FedCLAR.FedCLAR_tl_epoch = 200
-FedCLAR.train_method = Config.TrainMethod.FEDCLAR
-FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
-FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
+# FedCLAR = copy.deepcopy(comp_base)
+# FedCLAR.FedCLAR_cluster_epoch = 50
+# FedCLAR.FedCLAR_tl_epoch = 200
+# FedCLAR.train_method = Config.TrainMethod.FEDCLAR
+# FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
+# FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
 
 
 FedProx = copy.deepcopy(comp_base)
@@ -204,7 +204,14 @@ def process_run(config: Config):
     gfl = GFL(config)
     gfl.run()
 
-    
+
+ouea = copy.deepcopy(comp_base)
+ouea.grouping_mode = Config.GroupingMode.OUEA
+ouea.result_dir = "./exp_data/grouping/ouea/"
+
+ouea_debug = copy.deepcopy(ouea)
+ouea_debug.server_num = 1
+ouea_debug.client_num = 100
 
 if __name__ == "__main__":
     # gfl = GFL(debug)
@@ -223,7 +230,7 @@ if __name__ == "__main__":
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
     CUDAS = [2, 3, 6, 7]
-    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, FedCLAR]
+    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ouea]
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
@@ -235,7 +242,7 @@ if __name__ == "__main__":
     # configs = [audio_configs[2], audio_configs[5]]
 
 
-
+    # configs = [ouea]
     task_counter = 0
     for i, config in enumerate(configs):
 
