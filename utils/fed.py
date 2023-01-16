@@ -43,7 +43,8 @@ class Config:
         RANDOM = 2
         CV_GREEDY = 3
         OUEA = 4
-        NONIID = 5
+        KLD = 5
+        NONIID = 6
 
     
     class TrainMethod(Enum):
@@ -834,6 +835,58 @@ class GFL:
             # self.groups_cvs += []
             self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
 
+        def __KMM_grouping(server_clients_arg: 'list[int]', server_num, group_num=20):
+            def kld_normal(p: 'np.ndarray'):
+                if np.sum(p) == 0:
+                    return 0
+
+                p = copy.deepcopy(p)
+                p.dtype = np.float64
+                p /= np.sum(p)
+                normal = 1/len(p)
+                ds = []
+                for prob in p:
+                    if prob == 0:
+                        ds.append(10)
+                    else:
+                        ds.append(prob * np.log(prob / normal))
+                kld = np.sum(ds)
+
+                return kld
+
+            avg_gs = len(server_clients_arg) / group_num
+            group_num_start = len(self.groups)
+            clients = copy.deepcopy(server_clients_arg)
+            # randomly assign the first group members
+            # have to do this, otherwise the KLD maight be infinity (log 0) if there is a 0 in the probability
+            groups = [ [clients[i]] for i in range(group_num) ]
+            clients = clients[group_num:]
+            while len(clients) > 0:
+                assign_mat = np.zeros((len(clients), group_num))
+                for i, client in enumerate(clients):
+                    for j, group in enumerate(groups):
+                        if len(group) <= avg_gs * 1.5:
+                            group_distri = np.sum([self.distributions[client] for client in group], axis=0)
+                            new_distri = group_distri + self.distributions[client]
+                            delta_d = kld_normal(new_distri) - kld_normal(group_distri) # 1/|E| is not necessary here
+                        else:
+                            delta_d = 10000000
+
+                        assign_mat[i, j] = delta_d
+
+                min_idx = np.argmin(assign_mat)
+                c, g = np.unravel_index(min_idx, assign_mat.shape)
+                groups[g].append(clients.pop(c))
+
+            groups = [ group for group in groups if len(group) > 0 ]
+            self.groups += groups
+            self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
+            self.groups_cvs += [ self.__calc_group_cv(group) for group in groups]
+            self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
+
+
+
+
         self.groups = []
         self.groups_cvs = []
 
@@ -844,6 +897,8 @@ class GFL:
                 __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.OUEA:
                 __OUEA_grouping(server_clients, i, )
+            elif self.config.grouping_mode == Config.GroupingMode.KLD:
+                __KMM_grouping(server_clients, i, )
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
@@ -1069,7 +1124,7 @@ class GFL:
         cur_cost = 0
         for i in range(self.config.global_epoch_num):
             # lr decay
-            if i % self.config.lr_interval == 0:
+            if i % self.config.lr_interval == self.config.lr_interval - 1:
                 if self.config.task_name == TaskName.CIFAR:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)

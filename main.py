@@ -213,6 +213,15 @@ ouea_debug = copy.deepcopy(ouea)
 ouea_debug.server_num = 1
 ouea_debug.client_num = 100
 
+kld = copy.deepcopy(comp_base)
+kld.grouping_mode = Config.GroupingMode.KLD
+kld.result_dir = "./exp_data/grouping/kld/"
+
+kld_debug = copy.deepcopy(kld)
+kld_debug.server_num = 1
+kld_debug.client_num = 100
+
+
 if __name__ == "__main__":
     # gfl = GFL(debug)
     # gfl.run()
@@ -230,7 +239,7 @@ if __name__ == "__main__":
     # gs_comp.test_mark = "_gs50"
     # config = gs_comp
     CUDAS = [2, 3, 6, 7]
-    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ouea]
+    configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ouea, kld]
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
@@ -242,7 +251,9 @@ if __name__ == "__main__":
     # configs = [audio_configs[2], audio_configs[5]]
 
 
-    # configs = [ouea]
+    # configs = [ouea_debug]
+    # configs = [kld_debug]
+    configs = [kld]
     task_counter = 0
     for i, config in enumerate(configs):
 
