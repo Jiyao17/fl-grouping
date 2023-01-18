@@ -145,11 +145,12 @@ comp_base.data_num_range = (20, 201)
 comp_base.group_epoch_num = 5
 comp_base.local_epoch_num = 2
 comp_base.log_interval = 5
-comp_base.budget = 1.1e6
+comp_base.budget = 1.e7
 
 fedclar = copy.deepcopy(comp_base)
-fedclar.FedCLAR_cluster_epoch = 300
-fedclar.FedCLAR_tl_epoch = 20
+fedclar.FedCLAR_cluster_epoch = 100
+fedclar.FedCLAR_tl_epoch = 200
+fedclar.FedCLAR_th = 0.001
 fedclar.train_method = Config.TrainMethod.FEDCLAR
 fedclar.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
 fedclar.selection_mode = Config.SelectionMode.RANDOM
@@ -211,13 +212,15 @@ def process_run(config: Config):
 fedclar_debug = copy.deepcopy(fedclar)
 fedclar_debug.task_name = TaskName.CIFAR
 fedclar_debug.server_num = 1
-fedclar_debug.client_num = 100
-fedclar_debug.data_num_range = (20, 201)
-fedclar_debug.batch_size = 10
-fedclar_debug.FedCLAR_cluster_epoch = 100
-fedclar_debug.FedCLAR_tl_epoch = 200
-fedclar_debug.FedCLAR_th = 0.9999
+fedclar_debug.client_num = 50
+fedclar_debug.data_num_range = (20, 21)
+fedclar_debug.batch_size = 20
+fedclar_debug.FedCLAR_cluster_epoch = 10
+fedclar_debug.FedCLAR_tl_epoch = 1000
+fedclar_debug.FedCLAR_th = 0.001
 fedclar_debug.lr = 0.01
+fedclar_debug.log_interval = 1
+fedclar_debug.test_mark = "_debug"
 # fedclar_debug.task_name = TaskName.CIFAR
 # fedclar_debug.server_num = 1
 # fedclar_debug.client_num = 100
@@ -251,7 +254,7 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [fedclar_debug]
+    configs = [fedclar]
 
 
     # configs = [audio_configs[0], audio_configs[3]]

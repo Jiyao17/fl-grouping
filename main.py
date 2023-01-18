@@ -145,7 +145,7 @@ comp_base.data_num_range = (20, 201)
 comp_base.group_epoch_num = 5
 comp_base.local_epoch_num = 2
 comp_base.log_interval = 5
-comp_base.budget = 1.1e6
+comp_base.budget = 1.e7
 
 # FedCLAR = copy.deepcopy(comp_base)
 # FedCLAR.FedCLAR_cluster_epoch = 50
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [configs[1]]
+    configs = [configs[3]]
 
 
     # configs = [audio_configs[0], audio_configs[3]]
@@ -272,12 +272,12 @@ if __name__ == "__main__":
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
         rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        if i < 1:
-            config.test_mark += rg_rs_mark_base
-        else:
-            config.test_mark += cvg_cvs_mark_base
+        # if i < 1:
+        #     config.test_mark += rg_rs_mark_base
+        # else:
+        config.test_mark += cvg_cvs_mark_base
 
-        # config.test_mark += "cvs"
+        config.test_mark += "cv_dn"
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1
         # p.start()

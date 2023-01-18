@@ -150,6 +150,8 @@ class DatasetPartitioner:
         self.subsets: list[Dataset] = []
         self.subsets_sizes: np.ndarray = None
 
+        self.remaining_indexes: 'list[list[int]]' = None
+
     def get_distributions(self):
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
         # print("subset_size: ", subsets_sizes[:15])
@@ -207,6 +209,7 @@ class DatasetPartitioner:
                 categorized_indexes[i] = categorized_indexes[i][num:]
             self.subsets.append(Subset(self.dataset, subset_indexes))
 
+        self.remaining_indexes = categorized_indexes
         return self.subsets
 
     def check_distribution(self, num: int) -> np.ndarray:
@@ -220,7 +223,6 @@ class DatasetPartitioner:
                 distributions[i][category] += 1
 
         return distributions
-
 
     def draw(self, num: int=None, filename: str="./pic/distribution.png"):
         if self.distributions is None:
@@ -247,3 +249,12 @@ class DatasetPartitioner:
         # plt.savefig('no_selection.pdf')
         plt.savefig(filename)
         plt.clf()
+
+    def generate_new_dataset(self, distribution: np.ndarray):
+        if self.remaining_indexes is None:
+            raise Exception("remaining_indexes is None, please call get_subsets() first")
+        new_dataset_indices = []
+        for i, num in enumerate(distribution):
+            new_dataset_indices.extend(self.remaining_indexes[i][:num])
+            self.remaining_indexes[i] = self.remaining_indexes[i][num:]
+        return Subset(self.dataset, new_dataset_indices)

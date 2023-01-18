@@ -603,10 +603,14 @@ class GFL:
         cv: float, coefficient of variation
         """
         distribution = np.zeros((self.label_type_num,))
-        for index in subset_indices:
+        data_nums = np.zeros((len(subset_indices),))
+        for i, index in enumerate(subset_indices):
             distribution += self.distributions[index]
-        cv = np.std(distribution) / np.mean(distribution)
-        return cv
+            # data_nums[i] = self.clients_data_nums[index]
+        cv_y = np.std(distribution) / np.mean(distribution)
+        # cv_x = np.std(data_nums) / np.mean(data_nums)
+        # return cv_x + cv_y
+        return cv_y
 
     def inspect_group_distribution(self, groups: 'list[list[int]]', num: int=None, filename:str="./pic/group_distribution.png") -> None:
         """
@@ -832,7 +836,7 @@ class GFL:
 
             self.groups += groups
             self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
-            # self.groups_cvs += []
+            self.groups_cvs += [self.__calc_group_cv(group) for group in groups]
             self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
 
         def __KMM_grouping(server_clients_arg: 'list[int]', server_num, group_num=20):

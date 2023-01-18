@@ -1,0 +1,3 @@
+
+config:{'task_name': <TaskName.CIFAR: 1>, 'server_num': 10, 'client_num': 1000, 'data_num_range': (10, 30), 'alpha': 0.1, 'sampling_frac': 0.2, 'data_path': './data/', 'global_epoch_num': 200, 'group_epoch_num': 5, 'local_epoch_num': 1, 'lr_interval': 100, 'lr': 0.01, 'batch_size': 50, 'device': 'cuda', 'selection_mode': <SelectionMode.PROB_CV: 1>, 'grouping_mode': <GroupingMode.CV_GREEDY: 3>, 'max_cv': 0.1, 'min_group_size': 10, 'log_interval': 5, 'result_dir': './exp_data/debug/', 'test_mark': 'bs5', 'comment': ''}
+0.00520771484375 0.0024966871738433837 0.0024220349311828613 0.002292279005050659 0.0022570320606231688 0.0022277001857757567 0.0021903769493103026 0.002176433801651001 0.002139307260513306 0.0021173969030380247 

@@ -556,12 +556,15 @@ class FedCLAR:
         self.faccu = open(self.config.result_dir + "accu" + self.config.test_mark, "a")
         self.floss = open(self.config.result_dir + "loss" + self.config.test_mark, "a")
         self.fcost = open(self.config.result_dir + "cost" + self.config.test_mark, "a")
+        self.fcaccu = open(self.config.result_dir + "caccu" + self.config.test_mark, "a")
         self.faccu.write("\nconfig:" + str(vars(self.config)) + "\n")
         self.floss.write("\nconfig:" + str(vars(self.config)) + "\n")
         self.fcost.write("\nconfig:" + str(vars(self.config)) + "\n")
+        self.fcaccu.write("\nconfig:" + str(vars(self.config)) + "\n")
         self.faccu.flush()
         self.floss.flush()
         self.fcost.flush()
+        self.fcaccu.flush()
 
         self.set_seed(data_seed)
         if self.config.task_name == TaskName.CIFAR:
@@ -572,6 +575,7 @@ class FedCLAR:
         partitioner = DatasetPartitioner(self.trainset, self.config.client_num, self.config.data_num_range, self.config.alpha, self.config.task_name)
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
+        self.partitioner: DatasetPartitioner = partitioner
         self.subsets_indices = partitioner.get_subsets()
         # partitioner.draw(20,"./pic/dubug.png")
         # global model, global drift in SCAFFOLD, clients
@@ -840,27 +844,34 @@ class FedCLAR:
             group_num_start = len(self.groups)
             clients = copy.deepcopy(server_clients_arg)
             clusters = [ [i] for i in range(len(clients)) ] # each client is a cluster
-            model_sds = [ self.clients[client_idx].model.state_dict() for client_idx in clients]
+            model_sds = [ copy.deepcopy(self.clients[client_idx].model.state_dict()) for client_idx in clients]
             # sim_mat = _sim_mat(model_sds)
 
+            avg_group_size = 5
             while True:
                 # update i, j
-                if len(clusters) == 50:
-                    a = 1
                 sim_mat = _sim_mat(model_sds)
                 for i in range(len(clusters)):
-                    sim_mat[i][i] = -1
-                max_index = np.argmax(sim_mat)
-                i, j = max_index // len(clusters), max_index % len(clusters)
+                    sim_mat[i][i] = 1
+                min_index = np.argmin(sim_mat)
+                i, j = min_index // len(clusters), min_index % len(clusters)
                 lens = [ len(cluster) for cluster in clusters]
                 max_len = max(lens)
                 with open('min_sim.txt', 'a') as f:
                     f.write( str(sim_mat[i][j]) + ", " + str(len(clusters)) + ", " + str(max_len) + "\n")
-                if len(clusters) <= 2:
+                if len(clusters) < 2:
                     error_msg = "too few clusters! th=" + str(th) + ", cluster_num=" + str(len(clusters))
                     raise Exception(error_msg)
-                # if sim_mat[i,j] >= th:
-                if len(clusters) >= len(clients) / 5 and sim_mat[i, j] >= th:
+                # too hard to control the group size -_-
+                # suspect the condition in the paper is 1 - similarity >= th
+                # merge min_sim clusters tends to increase the next min_sim
+                # then min_sim >= th does not work, cause min_sim is increasing
+                # check min_sim.txt in the root folder
+                # it records the min_sim, cluster_num and the max cluster size
+                # conclusion: the result basically cannot be reproduced on CIFAR10
+                # keep the original algorithm here, and add a term to control the group size
+                # for comparison with Group-HFL
+                if sim_mat[i, j] >= th and max_len <= avg_group_size*1.5:
                     # set i < j
                     if i > j:
                         i, j = j, i
@@ -883,8 +894,8 @@ class FedCLAR:
                             not_clustered_clients.append(cluster[0])
                     
                     # merge unclustered clients
-                    clustered_model_sds = [ model_sd for i, model_sd in enumerate(model_sds) if i not in not_clustered_clients]
-                    clusters = [ cluster for i, cluster in enumerate(clusters) if i not in not_clustered_clients]
+                    clustered_model_sds = [ model_sd for i, model_sd in enumerate(model_sds) if len(clusters[i]) > 1]
+                    clusters = [ cluster for i, cluster in enumerate(clusters) if len(cluster) > 1]
                     # send cluster models to clients
                     for cluster, model_sd in zip(clusters, clustered_model_sds):
                         for client_idx in cluster:
@@ -1033,7 +1044,7 @@ class FedCLAR:
 
             # get average state dict and delta drift
             for client_index in self.groups[group_index]:
-                state_dict = self.clients[client_index].model.state_dict()
+                state_dict = copy.deepcopy(self.clients[client_index].model.state_dict())
                 weight = self.clients_data_nums[client_index] / self.groups_data_nums[group_index]
                 # weight = 1.0 / len(self.groups[group_index])
                 for key in state_dict_avg.keys():
@@ -1102,7 +1113,7 @@ class FedCLAR:
         # get average state dict
         for weight, group_index in zip(weights, selected_groups):
             repr_client = self.clients[self.groups[group_index][0]]
-            state_dict = repr_client.model.state_dict()
+            state_dict = copy.deepcopy(repr_client.model.state_dict())
 
             for key in state_dict_avg.keys():
                 state_dict_avg[key] += state_dict[key] * weight
@@ -1134,7 +1145,7 @@ class FedCLAR:
         for group in selected_groups:
             for client_index in self.groups[group]:
                 weight = weights[client_index]
-                state_dict = self.clients[client_index].model.state_dict()
+                state_dict = copy.deepcopy(self.clients[client_index].model.state_dict())
 
                 for key in state_dict_avg.keys():
                     state_dict_avg[key] += state_dict[key] * weight
@@ -1163,10 +1174,14 @@ class FedCLAR:
         accus = []
         losses = []
         costs = []
+        cluster_accus = []
         cur_cost = 0
+
+
         for i in range(self.config.global_epoch_num):
             if self.config.train_method == Config.TrainMethod.FEDCLAR:
                 if i == self.config.FedCLAR_cluster_epoch:
+                    self.global_distribute(range(len(self.groups)))
                     # clustering
                     # switch to FedCLAR
                     self.config.grouping_mode = Config.GroupingMode.FEDCLAR
@@ -1175,12 +1190,27 @@ class FedCLAR:
                         for client in self.clients:
                             client.train()
                     self.group()
+                    # self.global_distribute(range(len(self.groups)))
                     print("FedCLAR clustering done")
                     print("groups number", len(self.groups))
-                
-                    
+                    # generate a test dataset for each cluster
+                    # which has the same distribution as its training data
+                    cluster_testloaders = []
+                    for cluster_index in range(len(self.groups)):
+                        cluster = self.groups[cluster_index]
+                        cluster_distri = np.zeros(10)
+                        for client_index in cluster:
+                            cluster_distri += self.distributions[client_index]
+                        cluster_distri /= np.sum(cluster_distri)
+                        # 100 test samples for each cluster
+                        cluster_distri *= 100
+                        cluster_distri = cluster_distri.astype(np.int32)
+                        cluster_testset = self.partitioner.generate_new_dataset(cluster_distri)
+                        cluster_testloader = DataLoader(cluster_testset, batch_size=100)
+                        cluster_testloaders.append(cluster_testloader)
+
             # lr decay
-            if i % self.config.lr_interval == 0:
+            if i % self.config.lr_interval == self.config.lr_interval - 1:
                 if self.config.task_name == TaskName.CIFAR:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)
@@ -1227,6 +1257,8 @@ class FedCLAR:
                         # # only distribute global model to the unclustered clients
                         # self.global_distribute([len(self.groups) - 1])
                         # clustered training and aggregation
+                        # self.global_train(range(len(self.groups)))
+                        # self.global_aggregate(range(len(self.groups)))
                         self.global_train(selected_groups)
                         self.global_aggregate(selected_groups)
                 else:
@@ -1255,6 +1287,19 @@ class FedCLAR:
             # test and record
             if i % self.config.log_interval == self.config.log_interval - 1:
                 if self.config.task_name == TaskName.CIFAR:
+                    if i < self.config.FedCLAR_cluster_epoch:
+                        cluster_accu = 0
+                    else:
+                        # test all selected clusters
+                        avg_cluster_accu = 0
+                        for cluster_index in selected_groups:
+                            cluster_model = self.clients[self.groups[cluster_index][0]].model
+                            cluster_testloader = cluster_testloaders[cluster_index]
+                            cluster_accu, cluster_loss = test_model(cluster_model, cluster_testloader)
+                            avg_cluster_accu += cluster_accu
+                        cluster_accu = avg_cluster_accu / len(selected_groups)
+                            
+                        # cluster_accu, cluster_loss = test_model(cluster0_model, cluster_testloader)
                     accu, loss = test_model(self.model, self.testloader)
                 elif self.config.task_name == TaskName.SPEECHCOMMAND:
                     self.task.model = self.model
@@ -1263,16 +1308,22 @@ class FedCLAR:
                 self.faccu.write(f'{accu} ')
                 self.floss.write(f'{loss} ')
                 self.fcost.write(f'{cur_cost} ')
+                self.fcaccu.write(f'{cluster_accu} ')
                 self.faccu.flush()
                 self.floss.flush()
                 self.fcost.flush()
+                self.fcaccu.flush()
 
                 accus.append(accu)
                 losses.append(loss)
                 costs.append(cur_cost)
+                cluster_accus.append(cluster_accu)
 
                 quick_draw(accus, self.config.result_dir + 'accu' + str(self.config.test_mark) + '.png')
-                print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost}')
+                quick_draw(cluster_accus, self.config.result_dir + 'caccu' + str(self.config.test_mark) + '.png')
+
+                # print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost}')
+                print(f'epoch {i} accu: {accu} loss: {loss} cost: {cur_cost} cluster accu: {cluster_accu}')
                 
             if cur_cost > self.config.budget:
                 break
