@@ -847,7 +847,7 @@ class GFL:
                 ds = []
                 for prob in p:
                     if prob == 0:
-                        ds.append(10)
+                        ds.append(10000)
                     else:
                         ds.append(prob * np.log(prob / normal))
                 kld = np.sum(ds)
@@ -865,12 +865,12 @@ class GFL:
                 assign_mat = np.zeros((len(clients), group_num))
                 for i, client in enumerate(clients):
                     for j, group in enumerate(groups):
-                        if len(group) <= avg_gs * 1.5:
+                        if len(group) <= avg_gs:
                             group_distri = np.sum([self.distributions[client] for client in group], axis=0)
                             new_distri = group_distri + self.distributions[client]
                             delta_d = kld_normal(new_distri) - kld_normal(group_distri) # 1/|E| is not necessary here
                         else:
-                            delta_d = 10000000
+                            delta_d = 10000
 
                         assign_mat[i, j] = delta_d
 

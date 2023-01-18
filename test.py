@@ -54,11 +54,43 @@
 # subsets_indices = partitioner.get_subsets()
 # partitioner.draw(10)
 
-from utils.model import SpeechCommand
-import torch
+# from utils.model import SpeechCommand
+# import torch
 
-net = SpeechCommand()
+# net = SpeechCommand()
 
-optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-print(optimizer.param_groups[0]['params'].keys())
+# optimizer = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+# print(optimizer.param_groups[0]['params'].keys())
 # print(net)
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+data_range = (20, 200)
+samples = []
+means = []
+stds = []
+vars = []
+gammas = []
+weights = []
+for i in range(0, 1000):
+    samples.append(np.random.randint(data_range[0], data_range[1]))
+    mean = np.mean(samples)
+    std = np.std(samples)
+    var = np.var(samples)
+    gamma = np.sum([np.power(sample/mean, 2) for sample in samples])
+    weight = [sample/(mean*len(samples)) for sample in samples]
+    weight_var = np.var(weight)
+    means.append(mean)
+    stds.append(std)
+    vars.append(var)
+    gammas.append(gamma)
+    weights.append(weight_var)
+
+# plt.plot(means, label="mean")
+# plt.plot(stds, label="std")
+# plt.plot(gammas, label="gamma")
+# plt.plot(weights[50:], label="weight")
+plt.plot(vars, label="var")
+plt.legend()
+plt.savefig("test.png")

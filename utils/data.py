@@ -117,7 +117,7 @@ class DatasetPartitioner:
         plt.rc('font', size=16)
         plt.subplots_adjust(0.22, 0.16, 0.98, 0.98)
 
-        plt.xlabel('Clients', fontsize=24)
+        plt.xlabel('Groups', fontsize=24)
         plt.ylabel('Distribution', fontsize=24)
         plt.xticks(fontsize=24)
         plt.yticks(fontsize=24)

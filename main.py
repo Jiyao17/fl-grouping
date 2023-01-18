@@ -210,16 +210,22 @@ ouea.grouping_mode = Config.GroupingMode.OUEA
 ouea.result_dir = "./exp_data/grouping/ouea/"
 
 ouea_debug = copy.deepcopy(ouea)
-ouea_debug.server_num = 1
-ouea_debug.client_num = 100
+# ouea_debug.server_num = 1
+# ouea_debug.client_num = 100
+ouea_debug.test_mark += "_debug"
 
 kld = copy.deepcopy(comp_base)
 kld.grouping_mode = Config.GroupingMode.KLD
+kld.selection_mode = Config.SelectionMode.PROB_ESRCV
 kld.result_dir = "./exp_data/grouping/kld/"
 
+kld_cvs = copy.deepcopy(kld)
+kld_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
+
 kld_debug = copy.deepcopy(kld)
-kld_debug.server_num = 1
-kld_debug.client_num = 100
+# kld_debug.server_num = 1
+# kld_debug.client_num = 100
+kld_debug.test_mark += "_debug"
 
 
 if __name__ == "__main__":
@@ -243,7 +249,7 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [configs[6]]
+    configs = [configs[1]]
 
 
     # configs = [audio_configs[0], audio_configs[3]]
@@ -253,7 +259,8 @@ if __name__ == "__main__":
 
     # configs = [ouea_debug]
     # configs = [kld_debug]
-    configs = [kld]
+    # configs = [kld]
+    # configs = [kld_debug]
     task_counter = 0
     for i, config in enumerate(configs):
 
@@ -270,6 +277,7 @@ if __name__ == "__main__":
         else:
             config.test_mark += cvg_cvs_mark_base
 
+        # config.test_mark += "cvs"
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1
         # p.start()
