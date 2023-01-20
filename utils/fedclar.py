@@ -157,8 +157,7 @@ class TaskSpeechCommand():
         waveform = waveform.to(self.config.device)
         self.tranformed = self.transform(waveform).to(self.config.device)
         self.model = SpeechCommand(n_input=self.tranformed.shape[0], n_output=len(self.labels)).to(self.config.device)
-
-        self.optimizer = optim.SGD(self.model.parameters(), momentum=0.9, lr=self.config.lr, weight_decay=0.0001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.config.lr, weight_decay=0.0001)
         step_size = self.config.lr_interval * self.config.group_epoch_num * self.config.local_epoch_num
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=0.5)  # reduce the learning after 20 epochs by a factor of 10
 
@@ -438,7 +437,10 @@ class Client:
             #         param.requires_grad = False
         
             train_params = filter(lambda p: p.requires_grad, params)
-            self.optimizer = torch.optim.SGD(train_params, lr=self.lr, momentum=0.9, weight_decay=0.0001) #
+            if self.task_name == TaskName.CIFAR:
+                self.optimizer = torch.optim.SGD(train_params, lr=self.lr, momentum=0.9, weight_decay=0.0001)
+            elif self.task_name == TaskName.SPEECHCOMMAND:
+                self.optimizer = torch.optim.Adam(train_params, lr=self.lr, weight_decay=0.0001)
 
         for i, param in enumerate(self.model.parameters()):
             self.temp_model_params[i] = param.detach().data
@@ -518,8 +520,10 @@ class Client:
         # unfreeze all layers
         if trans_learn:
             self.model.fc.requires_grad = True
-            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
-
+            if self.task_name == TaskName.CIFAR:
+                self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
+            elif self.task_name == TaskName.SPEECHCOMMAND:
+                self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=0.0001)
         return self.train_loss, self.grad
 
     def set_lr(self, new_lr):
@@ -830,8 +834,6 @@ class FedCLAR:
                 for key in avg_state_dict.keys():
                     avg_state_dict[key] = avg_state_dict[key] * weights[0]
 
-                
-
                 for key in avg_state_dict.keys():
                     for i in range(1, len(state_dicts)):
                         avg_state_dict[key] = avg_state_dict[key].to(self.config.device)
@@ -843,17 +845,16 @@ class FedCLAR:
 
             group_num_start = len(self.groups)
             clients = copy.deepcopy(server_clients_arg)
-            clusters = [ [i] for i in range(len(clients)) ] # each client is a cluster
+            clusters = [ [client_idx] for client_idx in clients ] # each client is a cluster
             model_sds = [ copy.deepcopy(self.clients[client_idx].model.state_dict()) for client_idx in clients]
             # sim_mat = _sim_mat(model_sds)
 
-            avg_group_size = 5
             while True:
                 # update i, j
                 sim_mat = _sim_mat(model_sds)
                 for i in range(len(clusters)):
-                    sim_mat[i][i] = 1
-                min_index = np.argmin(sim_mat)
+                    sim_mat[i][i] = -1
+                min_index = np.argmax(sim_mat)
                 i, j = min_index // len(clusters), min_index % len(clusters)
                 lens = [ len(cluster) for cluster in clusters]
                 max_len = max(lens)
@@ -871,7 +872,11 @@ class FedCLAR:
                 # conclusion: the result basically cannot be reproduced on CIFAR10
                 # keep the original algorithm here, and add a term to control the group size
                 # for comparison with Group-HFL
-                if sim_mat[i, j] >= th and max_len <= avg_group_size*1.5:
+
+                # communicated with the authors and they confirmed that it should be argmax instead
+                # have to mannually control the group size 
+                # as th is very unstable
+                if sim_mat[i, j] >= th and max_len <= self.config.min_group_size*2:
                     # set i < j
                     if i > j:
                         i, j = j, i
@@ -899,7 +904,8 @@ class FedCLAR:
                     # send cluster models to clients
                     for cluster, model_sd in zip(clusters, clustered_model_sds):
                         for client_idx in cluster:
-                            self.clients[client_idx].model.load_state_dict(model_sd)
+                            sd_copy = copy.deepcopy(model_sd)
+                            self.clients[client_idx].model.load_state_dict(sd_copy)
                     # clusters.append(not_clustered_clients)
                     # merged_sd = _merge_model_sds([model_sds[i] for i in not_clustered_clients])
                     # clustered_model_sds.append(merged_sd)
@@ -908,12 +914,13 @@ class FedCLAR:
                     self.groups += clusters
                     self.groups_data_nums += [ sum([self.clients_data_nums[client_idx] for client_idx in cluster]) for cluster in clusters ]
                     self.groups_cvs += [ self.__calc_group_cv(cluster) for cluster in clusters ]
-                    self.servers_clients[server_no] = [ group_num_start + i for i in range(len(clusters)) ]
-                    
+                    self.servers_groups[server_no] = [ group_num_start + i for i in range(len(clusters)) ]
+
                     break
 
         self.groups = [] 
         self.groups_cvs = []
+        self.groups_data_nums = []
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
@@ -1198,7 +1205,8 @@ class FedCLAR:
                     cluster_testloaders = []
                     for cluster_index in range(len(self.groups)):
                         cluster = self.groups[cluster_index]
-                        cluster_distri = np.zeros(10)
+                        distri_shape = len(self.distributions[0])
+                        cluster_distri = np.zeros(distri_shape)
                         for client_index in cluster:
                             cluster_distri += self.distributions[client_index]
                         cluster_distri /= np.sum(cluster_distri)
@@ -1257,10 +1265,10 @@ class FedCLAR:
                         # # only distribute global model to the unclustered clients
                         # self.global_distribute([len(self.groups) - 1])
                         # clustered training and aggregation
-                        # self.global_train(range(len(self.groups)))
-                        # self.global_aggregate(range(len(self.groups)))
-                        self.global_train(selected_groups)
-                        self.global_aggregate(selected_groups)
+                        self.global_train(range(len(self.groups)))
+                        # self.global_train(selected_groups)
+                        self.global_aggregate(range(len(self.groups)))
+                        # self.global_aggregate(selected_groups)
                 else:
                     # normal hierarchical training
                     self.global_distribute(selected_groups)
@@ -1304,6 +1312,7 @@ class FedCLAR:
                 elif self.config.task_name == TaskName.SPEECHCOMMAND:
                     self.task.model = self.model
                     accu, loss = self.task.test(self.testloader)
+                    cluster_accu = 0
 
                 self.faccu.write(f'{accu} ')
                 self.floss.write(f'{loss} ')

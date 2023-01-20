@@ -1,6 +1,6 @@
 
 import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline, BSpline
+# from scipy.interpolate import make_interp_spline, BSpline
 import numpy as np
 
 colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
@@ -15,10 +15,12 @@ colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
 (0.09019607843137255, 0.7450980392156863, 0.8117647058823529) # cyan
 ]
 
-root_data_dir = "/home/shallow/projects/fl-grouping/exp_data/"
+root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
 # sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 3
+# sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
+#     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
 sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
-    + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
+    + ["grouping/cvg_cvs/"] * 1 + ["grouping/ouea/"] * 1 + ["grouping/kld/"] * 1 + ["grouping/fedclar/"] * 1 
 
 # sub_dirs = ["grouping/cvg_cvs/"] * 3
 # sub_dirs = ["grouping/rg_rs/"] * 4
@@ -52,8 +54,10 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # marks = ["_alpha0.1_cv0.1_10*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_cv1.0_10*2", ]
 # fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
 # comp audio
-marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_cv10.0_5*2", ] * 3
-fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
+# marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_cv10.0_5*2", ] * 3
+marks = ["_alpha0.1_gs5_5*2" ] * 3 + ["_alpha0.1_cv1.0_5*2", ] + ["_alpha0.1_gs5_5*2" ] * 3
+fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "Group-HFL", "OUEA", "SHARE", "FedCLAR"]
+# fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
 # marks = ["_sc_alpha0.01_cv10.0_5*2", ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 3
 # fig_labels = ["CVG", "CVG+FedProx", "CVG+SCAFFOLD", "RG", "RG+FedProx", "RG+SCAFFOLD", ]
 
@@ -85,8 +89,12 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
         accu = [float(x) for x in accu if x != ""]
     except:
         continue
-    # plt.plot(cost, accu, label=label)
-    plt.plot(range(len(cost)), accu,  label=label)
+    # if len(cost) > 40:
+    #     cost = cost[:40]
+    #     accu = accu[:40]
+
+    plt.plot(cost, accu, label=label)
+    # plt.plot(range(len(cost)), accu,  label=label)
 
     print(label)
     print("Avg last 3 accu:", sum(accu[-3:]) / 3)
@@ -96,7 +104,7 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
 # max_cost = 2000000
 # plt.xlim(0, 20)
 # plt.ylim(0.15, 0.6)
-
+plt.xlim(0, 1e6)
     # 300 represents number of points to make between T.min and T.max
     # cost_new = np.linspace(0, max_cost, 10000) 
 
@@ -113,7 +121,7 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
 plt.rc('font', size=12)
 plt.subplots_adjust(0.16, 0.16, 0.95, 0.96)
 
-plt.xlabel('Global Round', fontsize=24)
+plt.xlabel('Cost', fontsize=24)
 plt.ylabel('Accuracy', fontsize=24)
 # plt.subplots_adjust(0.16, 0.16, 0.96, 0.96)
 

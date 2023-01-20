@@ -352,9 +352,9 @@ class Client:
 
         model.to(config.device)
         sd = model.state_dict()
-        for key in sd.keys():
-            if key.endswith('batches_tracked') is False:
-                sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
+        # for key in sd.keys():
+        #     if key.endswith('batches_tracked') is False:
+        #         sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
         model.load_state_dict(sd)
 
         # global c in SCAFFOLD
@@ -808,8 +808,8 @@ class GFL:
                     else:
                         centers = new_centers
 
-                    i += 0
-
+                    i += 1
+                # clusters = [cluster for cluster in clusters if len(cluster) > 0]
                 return clusters
 
             """
@@ -900,9 +900,12 @@ class GFL:
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
                 __random_grouping(server_clients, i, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.OUEA:
-                __OUEA_grouping(server_clients, i, )
+                group_num = len(server_clients) // self.config.min_group_size
+                cluster_num = len(server_clients) // group_num
+                __OUEA_grouping(server_clients, i, cluster_num, group_num)
             elif self.config.grouping_mode == Config.GroupingMode.KLD:
-                __KMM_grouping(server_clients, i, )
+                group_num = len(server_clients) // self.config.min_group_size
+                __KMM_grouping(server_clients, i, group_num)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)

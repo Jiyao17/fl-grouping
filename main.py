@@ -94,7 +94,7 @@ var_30_30.test_mark = "_30-30"
 
 
 debug = Config(
-    task_name=TaskName.SPEECHCOMMAND,
+    task_name=TaskName.CIFAR,
     train_method=Config.TrainMethod.SGD,
     server_num=3, client_num=300, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**7,
@@ -154,6 +154,16 @@ comp_base.budget = 1.e7
 # FedCLAR.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
 # FedCLAR.result_dir = "./exp_data/grouping/fedclar/"
 
+gamma = copy.deepcopy(comp_base)
+gamma.server_num = 1
+gamma.client_num = 100
+gamma.data_num_range = (20, 201)
+gamma.test_mark = "_gamma"
+
+gamma_debug = copy.deepcopy(gamma)
+gamma_debug.data_num_range = (110, 111)
+gamma_debug.test_mark = "_gamma_debug"
+
 
 FedProx = copy.deepcopy(comp_base)
 FedProx.train_method = Config.TrainMethod.FEDPROX
@@ -165,7 +175,7 @@ scaffold.result_dir = "./exp_data/grouping/rg_rs/scaffold/"
 
 comp_cvg_cvs = copy.deepcopy(comp_base)
 comp_cvg_cvs.grouping_mode = Config.GroupingMode.CV_GREEDY
-comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_SRCV
+comp_cvg_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
 comp_cvg_cvs.result_dir = "./exp_data/grouping/cvg_cvs/"
 
 scaffold_cvg_cvs = copy.deepcopy(comp_cvg_cvs)
@@ -209,6 +219,12 @@ ouea = copy.deepcopy(comp_base)
 ouea.grouping_mode = Config.GroupingMode.OUEA
 ouea.result_dir = "./exp_data/grouping/ouea/"
 
+ouea_sc = copy.deepcopy(audio_configs[0])
+ouea_sc.grouping_mode = Config.GroupingMode.OUEA
+# ouea_sc.data_num_range = (50, 501)
+ouea_sc.result_dir = "./exp_data/grouping/ouea/"
+
+
 ouea_debug = copy.deepcopy(ouea)
 # ouea_debug.server_num = 1
 # ouea_debug.client_num = 100
@@ -216,8 +232,13 @@ ouea_debug.test_mark += "_debug"
 
 kld = copy.deepcopy(comp_base)
 kld.grouping_mode = Config.GroupingMode.KLD
-kld.selection_mode = Config.SelectionMode.PROB_ESRCV
+kld.selection_mode = Config.SelectionMode.RANDOM
 kld.result_dir = "./exp_data/grouping/kld/"
+
+kld_sc = copy.deepcopy(audio_configs[0])
+kld_sc.grouping_mode = Config.GroupingMode.KLD
+# kld_sc.data_num_range = (50, 501)
+kld_sc.result_dir = "./exp_data/grouping/kld/"
 
 kld_cvs = copy.deepcopy(kld)
 kld_cvs.selection_mode = Config.SelectionMode.PROB_ESRCV
@@ -227,6 +248,16 @@ kld_debug = copy.deepcopy(kld)
 # kld_debug.client_num = 100
 kld_debug.test_mark += "_debug"
 
+rg_sc = copy.deepcopy(kld_sc)
+rg_sc.grouping_mode = Config.GroupingMode.RANDOM
+# rg_sc.data_num_range = (50, 501)
+rg_sc.result_dir = "./exp_data/grouping/rg_rs/"
+
+cvg_sc = copy.deepcopy(kld_sc)
+cvg_sc.grouping_mode = Config.GroupingMode.CV_GREEDY
+# cvg_sc.data_num_range = (50, 501)
+cvg_sc.result_dir = "./exp_data/grouping/cvg_cvs/"
+cvg_cvs.test_mark = "_grouping"
 
 if __name__ == "__main__":
     # gfl = GFL(debug)
@@ -246,11 +277,17 @@ if __name__ == "__main__":
     # config = gs_comp
     CUDAS = [2, 3, 6, 7]
     configs = [comp_base, FedProx, scaffold, comp_cvg_cvs, fedprox_cvg_cvs, scaffold_cvg_cvs, ouea, kld]
+    # configs = [comp_base, FedProx, scaffold, ouea, kld, comp_cvg_cvs,]
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
     configs = [configs[3]]
+    configs[0].test_mark += "_test"
 
+
+    # configs = [comp_cvg_cvs]
+    # configs[0].grouping_mode = Config.GroupingMode.OUEA
+    # configs[0].test_mark = "grouping"
 
     # configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
@@ -258,9 +295,18 @@ if __name__ == "__main__":
 
 
     # configs = [ouea_debug]
+    # configs = [ouea_sc]
     # configs = [kld_debug]
+    # kld.selection_mode = Config.SelectionMode.PROB_ESRCV
+    # kld.test_mark = "_esrcv"
     # configs = [kld]
+    # configs = [kld_sc]
     # configs = [kld_debug]
+    # configs = [gamma]
+    # configs = [gamma_debug]
+    # configs = [rg_sc]
+    # configs = [cvg_sc]
+
     task_counter = 0
     for i, config in enumerate(configs):
 
@@ -273,11 +319,11 @@ if __name__ == "__main__":
         rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
             + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
         # if i < 1:
-        #     config.test_mark += rg_rs_mark_base
+        config.test_mark += rg_rs_mark_base
         # else:
-        config.test_mark += cvg_cvs_mark_base
+        # config.test_mark += cvg_cvs_mark_base
 
-        config.test_mark += "cv_dn"
+        # config.test_mark += "cv_dn"
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1
         # p.start()

@@ -150,7 +150,8 @@ class DatasetPartitioner:
         self.subsets: list[Dataset] = []
         self.subsets_sizes: np.ndarray = None
 
-        self.remaining_indexes: 'list[list[int]]' = None
+        self.remaining_indexes: 'list[list[int]]' = dataset_categorize(self.dataset, self.task_name)
+
 
     def get_distributions(self):
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
@@ -198,18 +199,17 @@ class DatasetPartitioner:
         if self.distributions is None:
             self.get_distributions()
 
-        categorized_indexes = dataset_categorize(self.dataset, self.task_name)
         self.subsets = []
         # print("distributions: ", self.distributions[:5])
         # print("categorized_indexes: ", categorized_indexes[:5])
         for distribution in self.distributions:
             subset_indexes = []
             for i, num in enumerate(distribution):
-                subset_indexes.extend(categorized_indexes[i][:num])
-                categorized_indexes[i] = categorized_indexes[i][num:]
+                subset_indexes.extend(self.remaining_indexes[i][:num])
+                self.remaining_indexes[i] = self.remaining_indexes[i][num:]
             self.subsets.append(Subset(self.dataset, subset_indexes))
 
-        self.remaining_indexes = categorized_indexes
+        self.remaining_indexes = self.remaining_indexes
         return self.subsets
 
     def check_distribution(self, num: int) -> np.ndarray:

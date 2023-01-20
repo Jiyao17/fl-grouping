@@ -149,8 +149,8 @@ comp_base.budget = 1.e7
 
 fedclar = copy.deepcopy(comp_base)
 fedclar.FedCLAR_cluster_epoch = 100
-fedclar.FedCLAR_tl_epoch = 200
-fedclar.FedCLAR_th = 0.001
+fedclar.FedCLAR_tl_epoch = 1000
+fedclar.FedCLAR_th = 0.995
 fedclar.train_method = Config.TrainMethod.FEDCLAR
 fedclar.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
 fedclar.selection_mode = Config.SelectionMode.RANDOM
@@ -213,11 +213,13 @@ fedclar_debug = copy.deepcopy(fedclar)
 fedclar_debug.task_name = TaskName.CIFAR
 fedclar_debug.server_num = 1
 fedclar_debug.client_num = 50
-fedclar_debug.data_num_range = (20, 21)
+fedclar_debug.group_epoch_num = 5
+fedclar_debug.local_epoch_num = 2
+fedclar_debug.data_num_range = (40, 41)
 fedclar_debug.batch_size = 20
 fedclar_debug.FedCLAR_cluster_epoch = 10
 fedclar_debug.FedCLAR_tl_epoch = 1000
-fedclar_debug.FedCLAR_th = 0.001
+fedclar_debug.FedCLAR_th = 0.995
 fedclar_debug.lr = 0.01
 fedclar_debug.log_interval = 1
 fedclar_debug.test_mark = "_debug"
@@ -231,7 +233,14 @@ fedclar_debug.test_mark = "_debug"
 # fedclar_debug.FedCLAR_th = 0.995
 # fedclar_debug.lr = 0.1
 
-
+fedclar_sc = copy.deepcopy(audio_configs[0])
+fedclar_sc.FedCLAR_cluster_epoch = 100
+fedclar_sc.FedCLAR_tl_epoch = 1000
+fedclar_sc.FedCLAR_th = 0.995
+fedclar_sc.train_method = Config.TrainMethod.FEDCLAR
+fedclar_sc.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at given epoch
+fedclar_sc.selection_mode = Config.SelectionMode.RANDOM
+fedclar_sc.result_dir = "./exp_data/grouping/fedclar/"
 
 if __name__ == "__main__":
     # gfl = GFL(debug)
@@ -254,14 +263,15 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [fedclar]
+
 
 
     # configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
-
-
+    # configs = [fedclar]
+    configs = [fedclar_sc]
+    # configs = [fedclar_debug]
 
     task_counter = 0
     for i, config in enumerate(configs):
