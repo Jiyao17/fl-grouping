@@ -281,8 +281,9 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    configs = [configs[3]]
-    # configs[0].test_mark += "_test"
+    # configs = [configs[3]]
+    # configs[0].lr = 0.001
+    # configs[0].test_mark += "_test_init"
 
 
     # configs = [comp_cvg_cvs]
@@ -292,14 +293,14 @@ if __name__ == "__main__":
     # configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
-    configs = [audio_configs[3]]
+    # configs = [audio_configs[3]]
 
     # configs = [ouea_debug]
     # configs = [ouea_sc]
     # configs = [kld_debug]
     # kld.selection_mode = Config.SelectionMode.PROB_ESRCV
     # kld.test_mark = "_esrcv"
-    # configs = [kld]
+    configs = [kld]
     # configs = [kld_sc]
     # configs = [kld_debug]
     # configs = [gamma]

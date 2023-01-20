@@ -352,9 +352,9 @@ class Client:
 
         model.to(config.device)
         sd = model.state_dict()
-        # for key in sd.keys():
-        #     if key.endswith('batches_tracked') is False:
-        #         sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
+        for key in sd.keys():
+            if key.endswith('batches_tracked') is False:
+                sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
         model.load_state_dict(sd)
 
         # global c in SCAFFOLD

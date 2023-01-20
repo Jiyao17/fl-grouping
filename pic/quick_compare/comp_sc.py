@@ -20,7 +20,7 @@ root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
 # sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
 #     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
 sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
-    + ["grouping/cvg_cvs/"] * 1 + ["grouping/ouea/"] * 1 + ["grouping/kld/"] * 1 
+    + ["grouping/cvg_cvs/"] * 1 + ["grouping/ouea/"] * 1 + ["grouping/kld/"] * 1  + ["grouping/fedclar"] * 1
 
 # sub_dirs = ["grouping/cvg_cvs/"] * 3
 # sub_dirs = ["grouping/rg_rs/"] * 4
@@ -54,9 +54,9 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # marks = ["_alpha0.1_cv0.1_10*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_cv1.0_10*2", ]
 # fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
 # comp audio
-marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_cv10.0_5*2", ] * 3
+marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 4
 # marks = ["_alpha0.1_gs5_5*2" ] * 3 + ["_alpha0.1_cv1.0_5*2", ] + ["_alpha0.1_gs5_5*2" ] * 2
-fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "Group-HFL", "OUEA", "SHARE", ]
+fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "Group-HFL", "OUEA", "SHARE", "FedCLAR"]
 # fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
 # marks = ["_sc_alpha0.01_cv10.0_5*2", ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 3
 # fig_labels = ["CVG", "CVG+FedProx", "CVG+SCAFFOLD", "RG", "RG+FedProx", "RG+SCAFFOLD", ]
@@ -92,8 +92,8 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
     # if len(cost) > 40:
     #     cost = cost[:40]
     #     accu = accu[:40]
-    plt.plot(cost, accu, label=label)
-    # plt.plot(range(len(cost)), accu,  label=label)
+    # plt.plot(cost, accu, label=label)
+    plt.plot(range(len(cost)), accu,  label=label)
 
     print(label)
     print("Avg last 3 accu:", sum(accu[-3:]) / 3)
@@ -140,5 +140,5 @@ plt.legend()
 # plt.grid(True)
 # plt.legend()
 
-plt.savefig("comp.png")
-plt.savefig("comp.pdf")
+plt.savefig("comp_sc.png")
+plt.savefig("comp_sc.pdf")
