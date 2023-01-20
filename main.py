@@ -282,7 +282,7 @@ if __name__ == "__main__":
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
     configs = [configs[3]]
-    configs[0].test_mark += "_test"
+    # configs[0].test_mark += "_test"
 
 
     # configs = [comp_cvg_cvs]
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     # configs = [audio_configs[0], audio_configs[3]]
     # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
-
+    configs = [audio_configs[3]]
 
     # configs = [ouea_debug]
     # configs = [ouea_sc]

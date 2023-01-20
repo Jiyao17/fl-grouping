@@ -893,6 +893,7 @@ class GFL:
 
         self.groups = []
         self.groups_cvs = []
+        self.groups_data_nums = []
 
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:

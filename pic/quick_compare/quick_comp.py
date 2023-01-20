@@ -55,7 +55,7 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
 # comp audio
 # marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_cv10.0_5*2", ] * 3
-marks = ["_alpha0.1_gs5_5*2" ] * 3 + ["_alpha0.1_cv1.0_5*2", ] + ["_alpha0.1_gs5_5*2" ] * 3
+marks = ["_alpha0.1_gs5_5*2" ] * 3 + ["_test_alpha0.1_gs5_5*2", ] + ["_alpha0.1_gs5_5*2" ] * 3
 fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "Group-HFL", "OUEA", "SHARE", "FedCLAR"]
 # fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
 # marks = ["_sc_alpha0.01_cv10.0_5*2", ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 3
