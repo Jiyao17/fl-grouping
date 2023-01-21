@@ -281,11 +281,29 @@ if __name__ == "__main__":
     # configs = [configs[0], configs[3]]
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
-    # configs = [configs[3]]
+    configs = [configs[3]]
     # configs[0].lr = 0.001
     # configs[0].test_mark += "_test_init"
+    # comp_base.data_num_range = (110, 111)
+    # comp_base.test_mark += "_dnr_fix"
+    # configs = [comp_base]
 
-
+    # comp_s = copy.deepcopy(comp_cvg_cvs)
+    # comp_s.server_num = 1
+    # comp_s.client_num = 200
+    # comp_s.data_num_range = (20, 201)
+    # comp_s.batch_size = 20
+    # comp_s.grouping_mode = Config.GroupingMode.RANDOM
+    # comp_s.test_mark = "_rg+cvs"
+    # comp_s.selection_mode = Config.SelectionMode.RANDOM
+    # comp_s.test_mark = "_random"
+    # comp_s.selection_mode = Config.SelectionMode.PROB_RCV
+    # comp_s.test_mark = "_rcv"
+    # comp_s.selection_mode = Config.SelectionMode.PROB_SRCV
+    # comp_s.test_mark = "_srcv"
+    # comp_s.selection_mode = Config.SelectionMode.PROB_ESRCV
+    # comp_s.test_mark = "_esrcv"
+    # configs = [comp_s]
     # configs = [comp_cvg_cvs]
     # configs[0].grouping_mode = Config.GroupingMode.OUEA
     # configs[0].test_mark = "grouping"
@@ -294,19 +312,31 @@ if __name__ == "__main__":
     # configs = [audio_configs[1], audio_configs[4]]
     # configs = [audio_configs[2], audio_configs[5]]
     # configs = [audio_configs[3]]
+    # configs[0].min_group_size = 10
+    # configs[0].max_group_cv = 1.0
+    # configs[0].data_num_range = (50, 501)
+    # configs[0].test_mark = "_dr"
 
     # configs = [ouea_debug]
     # configs = [ouea_sc]
     # configs = [kld_debug]
-    # kld.selection_mode = Config.SelectionMode.PROB_ESRCV
+    # kld.server_num = 1
+    # kld.client_num = 200
+    # kld.batch_size = 20
+    # kld.test_mark = "_rs"
     # kld.test_mark = "_esrcv"
-    configs = [kld]
+    # kld.selection_mode = Config.SelectionMode.PROB_ESRCV
+    # kld_sc.test_mark = "_dr"
+    # kld_sc.data_num_range = (50, 501)
+    # kld.selection_mode = Config.SelectionMode.PROB_ESRCV
+    # configs = [kld]
     # configs = [kld_sc]
     # configs = [kld_debug]
     # configs = [gamma]
     # configs = [gamma_debug]
     # configs = [rg_sc]
     # configs = [cvg_sc]
+
 
     task_counter = 0
     for i, config in enumerate(configs):

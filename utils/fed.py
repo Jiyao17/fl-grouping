@@ -832,7 +832,6 @@ class GFL:
                 while len(cluster) > 0:
                     groups[i % group_num].append(cluster.pop())
                     i += 1
-                    
 
             self.groups += groups
             self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
@@ -869,12 +868,9 @@ class GFL:
                 assign_mat = np.zeros((len(clients), group_num))
                 for i, client in enumerate(clients):
                     for j, group in enumerate(groups):
-                        if len(group) <= avg_gs:
-                            group_distri = np.sum([self.distributions[client] for client in group], axis=0)
-                            new_distri = group_distri + self.distributions[client]
-                            delta_d = kld_normal(new_distri) - kld_normal(group_distri) # 1/|E| is not necessary here
-                        else:
-                            delta_d = 10000
+                        group_distri = np.sum([self.distributions[client] for client in group], axis=0)
+                        new_distri = group_distri + self.distributions[client]
+                        delta_d = kld_normal(new_distri) - kld_normal(group_distri) # 1/|E| is not necessary here
 
                         assign_mat[i, j] = delta_d
 
