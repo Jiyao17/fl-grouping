@@ -63,6 +63,7 @@ class Config:
         lr=0.1, lr_interval=100, local_batch_size=10,
         log_interval=5, 
         grouping_mode=GroupingMode.CV_GREEDY, max_group_cv=1.0, min_group_size=10,
+        regroup_interval=10000,
         # partition_mode=PartitionMode.IID,
         selection_mode=SelectionMode.RANDOM, aggregation_option=7,
         device="cuda", 
@@ -85,11 +86,12 @@ class Config:
         self.global_epoch_num = global_epoch_num
         self.group_epoch_num = group_epoch_num
         self.local_epoch_num = local_epoch_num
+        self.regroup_interval = regroup_interval
         self.lr_interval = lr_interval
         self.lr = lr
         self.batch_size = local_batch_size
         self.device = device
-        # SCAFFOLD or not
+        
         self.train_method = train_method
 
         self.selection_mode = selection_mode
@@ -646,8 +648,9 @@ class GFL:
                 # try to form a new group
 
                 # find a random client as the first one in the group
-                cur_min_cv = self.__calc_group_cv([server_clients[0]])
-                new_group: 'list[int]' = [server_clients[0]]
+                rand_client = np.random.randint(len(server_clients))
+                cur_min_cv = self.__calc_group_cv([server_clients[rand_client]])
+                new_group: 'list[int]' = [server_clients[rand_client]]
                 # greedy for the first client
                 # for client in server_clients:
                 #     cv = self.__calc_group_cv([client])
@@ -1136,6 +1139,10 @@ class GFL:
                 elif self.config.task_name == TaskName.SPEECHCOMMAND:
                     for client in self.clients:
                         client.set_lr(client.lr / 5)
+
+            # regroup
+            if i % self.config.regroup_interval == self.config.regroup_interval - 1:
+                self.group()
 
             selected_groups = self.sample()
             selected_cost = self.calc_selected_groups_cost(selected_groups)

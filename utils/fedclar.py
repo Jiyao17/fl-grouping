@@ -671,8 +671,9 @@ class FedCLAR:
                 # try to form a new group
 
                 # find a random client as the first one in the group
-                cur_min_cv = self.__calc_group_cv([server_clients[0]])
-                new_group: 'list[int]' = [server_clients[0]]
+                rand_client = np.random.randint(len(server_clients))
+                cur_min_cv = self.__calc_group_cv([server_clients[rand_client]])
+                new_group: 'list[int]' = [server_clients[rand_client]]
                 # greedy for the first client
                 # for client in server_clients:
                 #     cv = self.__calc_group_cv([client])

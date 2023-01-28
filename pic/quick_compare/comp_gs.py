@@ -19,11 +19,11 @@ root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
 # sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 3
 # sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
 #     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
-sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/kld/"] * 2
+sub_dirs = ["grouping/cvg_cvs/"] * 4 + ["grouping/kld/"] * 2
 
 marks = [ "_random_alpha0.1_gs5_5*2" ] + [ "_rg+cvs_alpha0.1_gs5_5*2" ] + ["_alpha0.1_cv1.0_5*2" ] + \
-     ["_alpha0.1_gs5_5*2" ] + ["_esrcv_alpha0.1_gs5_5*2" ] 
-fig_labels = ["CoVG+RS", "RG+CoVS", "CoVG+CoVS", "KLDG+RS", "KLDG+CoVS"]
+     ["_alpha0.1_gs5_5*2_regroup" ] + ["_alpha0.1_gs5_5*2" ] + ["_esrcv_alpha0.1_gs5_5*2" ] 
+fig_labels = ["CoVG+RS", "RG+CoVS", "CoVG+CoVS", "CoVG+CoVS+Regroup", "KLDG+RS", "KLDG+CoVS"]
 # fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
 # marks = ["_sc_alpha0.01_cv10.0_5*2", ] * 3 + ["_sc_alpha0.01_gs15_5*2", ] * 3
 # fig_labels = ["CVG", "CVG+FedProx", "CVG+SCAFFOLD", "RG", "RG+FedProx", "RG+SCAFFOLD", ]
@@ -72,7 +72,7 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
 # max_cost = 2000000
 # plt.xlim(0, 40)
 # plt.ylim(0.15, 0.6)
-plt.xlim(0, 1e6)
+# plt.xlim(0, 1e6)
     # 300 represents number of points to make between T.min and T.max
     # cost_new = np.linspace(0, max_cost, 10000) 
 

@@ -259,6 +259,7 @@ cvg_sc.grouping_mode = Config.GroupingMode.CV_GREEDY
 cvg_sc.result_dir = "./exp_data/grouping/cvg_cvs/"
 cvg_cvs.test_mark = "_grouping"
 
+
 if __name__ == "__main__":
     # gfl = GFL(debug)
     # gfl.run()
@@ -282,6 +283,9 @@ if __name__ == "__main__":
     # configs = [configs[1], configs[4]]
     # configs = [configs[2], configs[5]]
     configs = [configs[3]]
+    # configs[0].server_num = 1
+    # configs[0].client_num = 100
+    configs[0].regroup_interval = 5
     # configs[0].lr = 0.001
     # configs[0].test_mark += "_test_init"
     # comp_base.data_num_range = (110, 111)
@@ -354,7 +358,7 @@ if __name__ == "__main__":
         # else:
         # config.test_mark += cvg_cvs_mark_base
 
-        # config.test_mark += "cv_dn"
+        config.test_mark += "_regroup"
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1
         # p.start()
