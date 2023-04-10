@@ -12,6 +12,8 @@ import os
 from enum import Enum
 import copy
 import random
+import time
+import sys
 
 from utils.data import TaskName, load_dataset, DatasetPartitioner, quick_draw
 from utils.model import CIFARResNet, test_model, SpeechCommand
@@ -42,7 +44,7 @@ class Config:
         NONE = 1
         RANDOM = 2
         CV_GREEDY = 3
-        OUEA = 4
+        CDG = 4
         KLD = 5
         NONIID = 6
 
@@ -841,7 +843,7 @@ class GFL:
             self.groups_cvs += [self.__calc_group_cv(group) for group in groups]
             self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
 
-        def __KMM_grouping(server_clients_arg: 'list[int]', server_num, group_num=20):
+        def __KLD_grouping(server_clients_arg: 'list[int]', server_num, group_num=20):
             def kld_normal(p: 'np.ndarray'):
                 if np.sum(p) == 0:
                     return 0
@@ -850,12 +852,12 @@ class GFL:
                 p.dtype = np.float64
                 p /= np.sum(p)
                 normal = 1/len(p)
-                ds = []
-                for prob in p:
+                ds = np.zeros(len(p))
+                for i, prob in enumerate(p):
                     if prob == 0:
-                        ds.append(10000)
+                        ds[i] = 10000
                     else:
-                        ds.append(prob * np.log(prob / normal))
+                        ds[i] = prob * np.log(prob / normal)
                 kld = np.sum(ds)
 
                 return kld
@@ -894,23 +896,30 @@ class GFL:
         self.groups_cvs = []
         self.groups_data_nums = []
 
+        print("start grouping...")
+        time_start = time.time()
+
         for i, server_clients in enumerate(self.servers_clients):
             if self.config.grouping_mode == Config.GroupingMode.CV_GREEDY:
                 __CV_greedy_grouping(server_clients, i, self.config.max_group_cv, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.RANDOM:
                 __random_grouping(server_clients, i, self.config.min_group_size)
-            elif self.config.grouping_mode == Config.GroupingMode.OUEA:
+            elif self.config.grouping_mode == Config.GroupingMode.CDG:
                 group_num = len(server_clients) // self.config.min_group_size
                 cluster_num = len(server_clients) // group_num
                 __OUEA_grouping(server_clients, i, cluster_num, group_num)
             elif self.config.grouping_mode == Config.GroupingMode.KLD:
                 group_num = len(server_clients) // self.config.min_group_size
-                __KMM_grouping(server_clients, i, group_num)
+                __KLD_grouping(server_clients, i, group_num)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
                 self.groups_cvs = [ self.__calc_group_cv(group) for group in self.groups]
                 self.servers_groups = copy.deepcopy(self.servers_clients)
+
+        time_end = time.time()
+        print("grouping time: ", time_end - time_start)
+        # sys.stdout.flush()
 
         self.groups_data_nums_arr = np.array(self.groups_data_nums)
         self.groups_weights_arr = self.groups_data_nums / np.sum(self.groups_data_nums)
@@ -1150,11 +1159,11 @@ class GFL:
             # show_data_len = 10
             # if len(self.groups) < show_data_len:
             #     show_data_len = len(self.groups)
-            print("costs", self.groups_costs_arr)
-            print("probs", self.probs_arr)
-            print("selected groups", self.selected_groups)
+            # print("costs", self.groups_costs_arr)
+            # print("probs", self.probs_arr)
+            # print("selected groups", self.selected_groups)
             group_sizes = [ len(group) for group in self.groups]
-            print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
+            print("[min, max] avg gs: ", np.min(group_sizes), np.max(group_sizes))
             print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
             data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
             print('selected data num, cost:', data_selected, selected_cost)
