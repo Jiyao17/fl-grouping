@@ -45,7 +45,7 @@ class Config:
         RANDOM = 2
         CV_GREEDY = 3
         CDG = 4
-        KLD = 5
+        KLDG = 5
         NONIID = 6
 
     
@@ -908,7 +908,7 @@ class GFL:
                 group_num = len(server_clients) // self.config.min_group_size
                 cluster_num = len(server_clients) // group_num
                 __OUEA_grouping(server_clients, i, cluster_num, group_num)
-            elif self.config.grouping_mode == Config.GroupingMode.KLD:
+            elif self.config.grouping_mode == Config.GroupingMode.KLDG:
                 group_num = len(server_clients) // self.config.min_group_size
                 __KLD_grouping(server_clients, i, group_num)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
@@ -1163,7 +1163,7 @@ class GFL:
             # print("probs", self.probs_arr)
             # print("selected groups", self.selected_groups)
             group_sizes = [ len(group) for group in self.groups]
-            print("[min, max] avg gs: ", np.min(group_sizes), np.max(group_sizes))
+            print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
             print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
             data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
             print('selected data num, cost:', data_selected, selected_cost)

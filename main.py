@@ -96,13 +96,34 @@ var_30_30.test_mark = "_30-30"
 debug = Config(
     task_name=TaskName.CIFAR,
     train_method=Config.TrainMethod.SGD,
-    server_num=3, client_num=100, data_num_range=(100, 201), alpha=(0.1, 0.1),
+    server_num=3, client_num=100, data_num_range=(20, 201), alpha=(0.1, 0.1),
     sampling_frac=0.2, budget=10**7,
     global_epoch_num=100, group_epoch_num=10, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
     log_interval=1, 
     # alpha=0.1: sigma = 
-    grouping_mode=Config.GroupingMode.CV_GREEDY, max_group_cv=1.0, min_group_size=5,
+    grouping_mode=Config.GroupingMode.KLDG, max_group_cv=1.0, min_group_size=12,
+    # partition_mode=Config.PartitionMode.IID,
+    selection_mode=Config.SelectionMode.PROB_ESRCV,
+    device="cuda",
+    data_path="./data/", 
+    result_dir="./exp_data/debug/",
+    test_mark="_sc",
+    comment="",
+)
+
+# config template for comparing the grouping algorithms
+# regarding group size, group cv, and group overheads
+algo_gs_cov = Config(
+    task_name=TaskName.CIFAR,
+    train_method=Config.TrainMethod.SGD,
+    server_num=3, client_num=100, data_num_range=(20, 201), alpha=(0.1, 0.1),
+    sampling_frac=0.2, budget=10**7,
+    global_epoch_num=100, group_epoch_num=10, local_epoch_num=2,
+    lr=0.01, lr_interval=1000, local_batch_size=10,
+    log_interval=1, 
+    # alpha=0.1: sigma = 
+    grouping_mode=Config.GroupingMode.KLDG, max_group_cv=1.0, min_group_size=12,
     # partition_mode=Config.PartitionMode.IID,
     selection_mode=Config.SelectionMode.PROB_ESRCV,
     device="cuda",
@@ -231,12 +252,12 @@ ouea_debug = copy.deepcopy(ouea)
 ouea_debug.test_mark += "_debug"
 
 kld = copy.deepcopy(comp_base)
-kld.grouping_mode = Config.GroupingMode.KLD
+kld.grouping_mode = Config.GroupingMode.KLDG
 kld.selection_mode = Config.SelectionMode.RANDOM
 kld.result_dir = "./exp_data/grouping/kld/"
 
 kld_sc = copy.deepcopy(audio_configs[0])
-kld_sc.grouping_mode = Config.GroupingMode.KLD
+kld_sc.grouping_mode = Config.GroupingMode.KLDG
 # kld_sc.data_num_range = (50, 501)
 kld_sc.result_dir = "./exp_data/grouping/kld/"
 
