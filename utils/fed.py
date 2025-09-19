@@ -1,6 +1,5 @@
 
 from asyncio import Task
-from matplotlib import test
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -16,7 +15,7 @@ import time
 import sys
 
 from utils.data import TaskName, load_dataset, DatasetPartitioner, quick_draw
-from utils.model import CIFARResNet, test_model, SpeechCommand
+from utils.model import CIFARResNet, test_model, SpeechCommand, FMNIST
 
 from torch.utils.data.dataset import Dataset, Subset
 
@@ -47,8 +46,8 @@ class Config:
         CDG = 4
         KLDG = 5
         NONIID = 6
-
-    
+        QCID = 7
+  
     class TrainMethod(Enum):
         SGD = 1
         SCAFFOLD = 2
@@ -353,12 +352,14 @@ class Client:
             model: nn.Module = CIFARResNet()
         elif config.task_name == TaskName.SPEECHCOMMAND:
             model = SpeechCommand()
-
+        elif config.task_name == TaskName.FMNIST:
+            model = FMNIST()
+            
         model.to(config.device)
         sd = model.state_dict()
-        for key in sd.keys():
-            if key.endswith('batches_tracked') is False:
-                sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
+        # for key in sd.keys():
+        #     if key.endswith('batches_tracked') is False:
+        #         sd[key] = nn.init.normal_(sd[key], 0.0, 1.0)
         model.load_state_dict(sd)
 
         # global c in SCAFFOLD
@@ -368,6 +369,8 @@ class Client:
         for i in range(client_num):
             if config.task_name == TaskName.CIFAR:
                 new_model = CIFARResNet()
+            elif config.task_name == TaskName.FMNIST:
+                new_model = FMNIST()
             elif config.task_name == TaskName.SPEECHCOMMAND:
                 new_model = SpeechCommand()
             # torch.nn.init.normal_(model)
@@ -406,7 +409,13 @@ class Client:
 
             self.trainloader = DataLoader(self.trainset, self.config.batch_size, True) #, drop_last=True
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9, weight_decay=0.0001) #
-        
+        elif self.config.task_name == TaskName.FMNIST:
+            self.model = model
+            self.loss_fn = nn.CrossEntropyLoss()
+
+            self.trainloader = DataLoader(self.trainset, self.config.batch_size, True)
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.config.lr, momentum=0.9, weight_decay=0.0001)
+
         self.lr = self.config.lr
         self.local_epoch_num = self.config.local_epoch_num
         self.train_method  = self.config.train_method
@@ -511,16 +520,20 @@ class Client:
         elif self.task_name == TaskName.SPEECHCOMMAND:
             self.lr = new_lr
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=0.0001)
-
+        elif self.task_name == TaskName.FMNIST:
+            self.lr = new_lr
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001)
     # def calc_training_cost(self, dataset_len: int) -> float:
     #     training_cost = 0.00495469 * dataset_len + 0.01023199
     #     return training_cost
+
 
 class GFL:
 
     def set_seed(self, seed=None):
         if seed is None:
-            random.seed()
+            from datetime import datetime
+            random.seed(datetime.now().timestamp())
         else:
             random.seed(seed)
 
@@ -545,12 +558,15 @@ class GFL:
         self.floss.flush()
         self.fcost.flush()
 
-        self.set_seed(data_seed)
+        # self.set_seed()
         if self.config.task_name == TaskName.CIFAR:
+            self.trainset, self.testset = load_dataset(self.config.task_name)
+        elif self.config.task_name == TaskName.FMNIST:
             self.trainset, self.testset = load_dataset(self.config.task_name)
         elif self.config.task_name == TaskName.SPEECHCOMMAND:
             self.trainset, self.testset = TaskSpeechCommand.get_datasets(self.config)
             self.task = TaskSpeechCommand(self.config, testset=self.testset)
+
         partitioner = DatasetPartitioner(self.trainset, self.config.client_num, self.config.data_num_range, self.config.alpha, self.config.task_name)
         self.label_type_num = partitioner.label_type_num
         self.distributions = partitioner.get_distributions()
@@ -563,7 +579,7 @@ class GFL:
         self.clients_data_nums = np.sum(self.distributions, axis=1)
         self.clients_weights = self.clients_data_nums / np.sum(self.distributions)
         
-        self.set_seed()
+        # self.set_seed()
 
         # assign clients to servers
         self.servers_clients: 'list[list[int]]' = []
@@ -579,6 +595,7 @@ class GFL:
         self.groups_weights_arr: np.ndarray = None
         self.groups_cvs: 'list[int]'= []
         self.groups_cvs_arr: np.ndarray = None
+        self.groups_distris: np.ndarray = None
         # weights for weighted random sampling without replacement
         self.probs_arr: np.ndarray = None
         # frequencys that group g is sampled, used to estaimate real probs
@@ -592,8 +609,10 @@ class GFL:
         # may change over iterations
         self.selected_groups: np.ndarray = None
 
+        # used in QCID. Begin with 1 to avoid zero division
+        self.client_counts: np.ndarray = np.ones((self.config.client_num,))
 
-        self.group()
+        self.group(0)
         pic_filename = self.config.result_dir + "group_distribution_" + self.config.test_mark + ".pdf"
         show_num = 10
         if show_num > len(self.groups):
@@ -630,8 +649,25 @@ class GFL:
             num = len(self.distributions)
 
         DatasetPartitioner.plot_distribution(groups_distrs, num, filename)
+        self.groups_distris = groups_distrs
 
-    def group(self):
+    def __calc_QCID(self, group: 'list[int]') -> float:
+        """
+        return
+        QCID: float
+        """
+        assert len(group) > 0
+        distribution = np.zeros((self.label_type_num,))
+        for i, index in enumerate(group):
+            distribution += self.distributions[index]
+        # convert to probability
+        distribution = distribution / np.sum(distribution, axis=0)
+        diff = distribution - 1.0/self.label_type_num
+        qcid = np.sum(np.square(diff))
+        return qcid
+
+
+    def group(self, t=None):
         """
         form groups
         record their sigmas
@@ -692,6 +728,69 @@ class GFL:
                     self.servers_groups[server_num].append(group_num_start)
                     group_num_start += 1
 
+
+        def __QCID_greedy_grouping(server_clients_arg: 'list[int]', server_num, min_group_size: int, k, lam):
+            """
+            server_clients: list[int]
+            return
+            groups of this server
+            """
+            def __calc_prob(server_clients: 'list[int]', group: 'list[int]', k, lam) -> float:
+                probs = np.zeros((len(server_clients),))
+                if k == 0:
+                    k = 1
+                if len(group) == 0:
+                    for i, client in enumerate(server_clients):
+                        probs[i] = 1.0/self.__calc_QCID([client]) + lam*np.sqrt(3*np.log(k)/(2*self.client_counts[client]))
+                elif len(group) == 1:
+                    p1 = 1.0/self.__calc_QCID(group) + lam*np.sqrt(3*np.log(k)/(2*self.client_counts[group[0]]))
+                    probs = np.zeros((len(server_clients),))
+                    for i, client in enumerate(server_clients):
+                        probs[i] = 1.0/self.__calc_QCID([client])**2/p1
+                else:
+                    probs = np.zeros((len(server_clients),))
+                    for i, client in enumerate(server_clients):
+                        probs[i] = self.__calc_QCID(group)**len(group)/self.__calc_QCID(group + [client])**(len(group)+1)
+
+                return probs
+            
+            group_num_start = len(self.groups)
+            server_clients = copy.deepcopy(server_clients_arg)
+            # form groups for each server
+            while len(server_clients) > 0:
+                # try to form a new group
+
+                # find a random client as the first one in the group
+                p1s = __calc_prob(server_clients, [], k, lam)
+                # convert nan to 0
+                # p1s = np.nan_to_num(p1s, nan=0.0)
+                p1s = p1s / np.sum(p1s)
+                # print(p1s)
+                c1 = np.random.choice(server_clients, p=p1s)
+                new_group: 'list[int]' = [c1]
+                server_clients.remove(new_group[0])
+
+                # try to add more clients to the group
+                while len(server_clients) > 0 and not (len(new_group) >= min_group_size):
+                    # find the greedily best one
+                    ps = __calc_prob(server_clients, new_group, k, lam)
+                    ps = ps / np.sum(ps)
+                    new_client = np.random.choice(server_clients, p=ps)
+                    # found a suitable client, remove it from the pool, add it to the group
+                    server_clients.remove(new_client)
+                    new_group.append(new_client)
+
+                # not enough clients to form a group
+                if len(new_group) < min_group_size:
+                    continue
+                else:
+                    self.groups.append(new_group)
+                    self.groups_data_nums.append(np.sum(self.distributions[new_group]))
+                    self.groups_cvs.append(self.__calc_group_cv(new_group))
+                    self.servers_groups[server_num].append(group_num_start)
+                    group_num_start += 1
+
+
         def __random_grouping(server_clients_arg: 'list[int]', server_no, min_group_size: int):
             """
             stop when group size is reached
@@ -733,24 +832,7 @@ class GFL:
                 
                 group_size = len(group)
                 for client_index in group:
-                    if self.config.task_name == TaskName.CIFAR:
-                        # data from Raspberry PI 4
-                        # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
-                        # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
-                        # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
-                        # fedprox coefs: [0.06719291 0.14201339]
-
-                        # secagg coeffs
-                        group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
-                        # regular train coeffs
-                        train_coefs = [ 0.07093414, -0.00559966]
-
-                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                            group_coefs = [0.01879308, 0.18775216, 0.19883809]
-                            train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
-                        if self.config.train_method == Config.TrainMethod.FEDPROX:
-                            train_coefs = [0.06719291, 0.14201339]
-                    elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                    if self.config.task_name == TaskName.SPEECHCOMMAND:
                         # audio
                         # distance coefficiences: [ 0.00079432 -0.00142096  0.02028448]
                         # training coefficiences: [0.00244381 0.10137752]
@@ -768,7 +850,23 @@ class GFL:
                         if self.config.train_method == Config.TrainMethod.FEDPROX:
                             train_coefs = [0.00247751, 0.10650803]
 
+                    else:
+                        # data from Raspberry PI 4
+                        # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
+                        # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
+                        # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
+                        # fedprox coefs: [0.06719291 0.14201339]
 
+                        # secagg coeffs
+                        group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                        # regular train coeffs
+                        train_coefs = [ 0.07093414, -0.00559966]
+
+                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                            group_coefs = [0.01879308, 0.18775216, 0.19883809]
+                            train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
+                        if self.config.train_method == Config.TrainMethod.FEDPROX:
+                            train_coefs = [0.06719291, 0.14201339]
 
                     training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
                     group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
@@ -780,7 +878,10 @@ class GFL:
             
             return costs
 
-        def __OUEA_grouping(server_clients_arg: 'list[int]', server_num, cluster_num=5, group_num=20):
+        def __CD_grouping(server_clients_arg: 'list[int]', 
+                server_num, cluster_num=5, group_num=20,
+                min_group_size=5
+                ):
             def kmeans_clustering(clients, cluster_num) -> 'list[list[int]]':
                 # init without checking lengths
                 # clusters: 'list[set[int]]' = [ set([]) for i in range(cluster_num) ]
@@ -823,9 +924,9 @@ class GFL:
             """
             # divide similar clients (in terms of data distribution) into the same groups (in OUEA)
             server_clients = copy.deepcopy(server_clients_arg)
-            print("start k means clustering in OUEA.")
+            # print("start k means clustering in OUEA.")
             clusters = kmeans_clustering(server_clients, cluster_num)
-            print("k means clustering in OUEA done.")
+            # print("k means clustering in OUEA done.")
             group_num_start = len(self.groups)
 
             # use equal assign algorithm in OUEA to distribute a group to edges (groups in G-HFL)
@@ -838,12 +939,17 @@ class GFL:
                     groups[i % group_num].append(cluster.pop())
                     i += 1
 
+            for group in groups:
+                if len(group) < min_group_size:
+                    groups.remove(group)
+
             self.groups += groups
             self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
             self.groups_cvs += [self.__calc_group_cv(group) for group in groups]
             self.servers_groups[server_num] += [ i for i in range(group_num_start, group_num_start + len(groups))]
 
-        def __KLD_grouping(server_clients_arg: 'list[int]', server_num, group_num=20):
+
+        def __KLD_grouping(server_clients_arg: 'list[int]', server_num, group_num=20, min_group_size=5):
             def kld_normal(p: 'np.ndarray'):
                 if np.sum(p) == 0:
                     return 0
@@ -855,8 +961,16 @@ class GFL:
                 ds = np.zeros(len(p))
                 for i, prob in enumerate(p):
                     if prob == 0:
-                        ds[i] = 10000
+                        ds[i] = 1
+                    # if 0 <= prob and prob <= normal:
+                        # original KLD
+                        # ds[i] = prob * np.log(prob / normal)
+                        # correct the distortion between [0, normal]
+                        # map prob to its image regarding x = normal
+                        # or add more penalty between [0, normal]
+                        # ds[i] = 1 - prob / normal
                     else:
+                        # ds[i] = 1 - prob / normal
                         ds[i] = prob * np.log(prob / normal)
                 kld = np.sum(ds)
 
@@ -883,7 +997,8 @@ class GFL:
                 c, g = np.unravel_index(min_idx, assign_mat.shape)
                 groups[g].append(clients.pop(c))
 
-            groups = [ group for group in groups if len(group) > 0 ]
+            # groups = [ group for group in groups if len(group) > 0 ]
+            groups = [ group for group in groups if len(group) >= min_group_size ]
             self.groups += groups
             self.groups_data_nums += [np.sum(self.distributions[group]) for group in groups]
             self.groups_cvs += [ self.__calc_group_cv(group) for group in groups]
@@ -907,10 +1022,12 @@ class GFL:
             elif self.config.grouping_mode == Config.GroupingMode.CDG:
                 group_num = len(server_clients) // self.config.min_group_size
                 cluster_num = len(server_clients) // group_num
-                __OUEA_grouping(server_clients, i, cluster_num, group_num)
+                __CD_grouping(server_clients, i, cluster_num, group_num, self.config.min_group_size)
             elif self.config.grouping_mode == Config.GroupingMode.KLDG:
                 group_num = len(server_clients) // self.config.min_group_size
-                __KLD_grouping(server_clients, i, group_num)
+                __KLD_grouping(server_clients, i, group_num, self.config.min_group_size)
+            elif self.config.grouping_mode == Config.GroupingMode.QCID:
+                __QCID_greedy_grouping(server_clients, i, self.config.min_group_size, t, 1)
             elif self.config.grouping_mode == Config.GroupingMode.NONE:
                 self.groups = [ [i] for i in range(len(self.clients))]
                 self.groups_data_nums = copy.deepcopy(self.clients_data_nums)
@@ -994,6 +1111,8 @@ class GFL:
             # weighted_avg = np.sum(_pc)
             indices = range(len(self.groups))
             # sampling_num = int((sum(self.clients_data_nums) * self.config.sampling_frac) / weighted_avg)
+            if self.sampling_num > len(self.groups):
+                self.sampling_num = len(self.groups)
             self.selected_groups = np.random.choice(indices, self.sampling_num, p=probs, replace=False)
 
         else:
@@ -1095,7 +1214,7 @@ class GFL:
                 # numerical adjustment, make training stable
             weights = weights / np.sum(weights)
         
-        print(f"weights: {weights}")
+        # print(f"weights: {weights}")
                 # print(f"unbiased weights: {weights[:10]}")
 
         # get average state dict
@@ -1128,10 +1247,10 @@ class GFL:
         # indices = np.random.choice(range(len(self.testset)), 1000, replace=False)
         # subtestset = Subset(self.testset, indices=indices)
         # # print(indices)
-        if self.config.task_name == TaskName.CIFAR:
-            self.testloader = DataLoader(self.testset, 500, shuffle=True)
-        elif self.config.task_name == TaskName.SPEECHCOMMAND:
+        if self.config.task_name == TaskName.SPEECHCOMMAND:
             self.testloader = self.task.test_dataloader
+        else:
+            self.testloader = DataLoader(self.testset, 500, shuffle=True)
 
         # print(self.groups)
         accus = []
@@ -1141,7 +1260,7 @@ class GFL:
         for i in range(self.config.global_epoch_num):
             # lr decay
             if i % self.config.lr_interval == self.config.lr_interval - 1:
-                if self.config.task_name == TaskName.CIFAR:
+                if self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)
                     print('lr decay to {}'.format(self.clients[0].lr))
@@ -1151,22 +1270,28 @@ class GFL:
 
             # regroup
             if i % self.config.regroup_interval == self.config.regroup_interval - 1:
-                self.group()
+                self.group(i)
 
             selected_groups = self.sample()
             selected_cost = self.calc_selected_groups_cost(selected_groups)
-
+            # update client counts
+            for group in selected_groups:
+                for client in self.groups[group]:
+                    self.client_counts[client] += 1
             # show_data_len = 10
             # if len(self.groups) < show_data_len:
             #     show_data_len = len(self.groups)
             # print("costs", self.groups_costs_arr)
             # print("probs", self.probs_arr)
             # print("selected groups", self.selected_groups)
+
             group_sizes = [ len(group) for group in self.groups]
             print("[min, max] gs: ", np.min(group_sizes), np.max(group_sizes))
             print("mean gs, cv: ", np.mean(group_sizes), np.mean(self.groups_cvs_arr))
             data_selected = np.sum(self.groups_data_nums_arr[self.selected_groups])
             print('selected data num, cost:', data_selected, selected_cost)
+            cv_selected = np.sum(self.groups_cvs_arr[self.selected_groups])
+            print('avg selected cv:', cv_selected / len(self.selected_groups))
 
 
             self.global_distribute(selected_groups)
@@ -1185,11 +1310,12 @@ class GFL:
 
             # test and record
             if i % self.config.log_interval == self.config.log_interval - 1:
-                if self.config.task_name == TaskName.CIFAR:
-                    accu, loss = test_model(self.model, self.testloader)
-                elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                if self.config.task_name == TaskName.SPEECHCOMMAND:
                     self.task.model = self.model
                     accu, loss = self.task.test(self.testloader)
+                else:
+                    accu, loss = test_model(self.model, self.testloader)
+                
 
                 self.faccu.write(f'{accu} ')
                 self.floss.write(f'{loss} ')

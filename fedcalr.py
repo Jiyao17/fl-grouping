@@ -242,6 +242,31 @@ fedclar_sc.grouping_mode = Config.GroupingMode.RANDOM # switch to FEDCLAR at giv
 fedclar_sc.selection_mode = Config.SelectionMode.RANDOM
 fedclar_sc.result_dir = "./exp_data/grouping/fedclar/"
 
+
+fmnist_base = Config(
+    task_name=TaskName.FMNIST,
+    server_num=1, client_num=100, data_num_range=(10, 51), alpha=(0.05, 0.05),
+    sampling_frac=0.2, budget=10**7,
+    global_epoch_num=1000, 
+    # the following line may vary
+    group_epoch_num=5, local_epoch_num=2,
+    lr=0.001, lr_interval=1000, local_batch_size=5,
+    log_interval=1, 
+    # the following two lines may vary
+    grouping_mode=Config.GroupingMode.RANDOM, max_group_cv=1.0, min_group_size=5,
+    selection_mode=Config.SelectionMode.RANDOM,
+    aggregation_option=Config.AggregationOption.WEIGHTED_AVERAGE,
+    FedCLAR_cluster_epoch=30,
+    FedCLAR_tl_epoch=1000,
+    device="cuda",
+    train_method=Config.TrainMethod.FEDCLAR,
+    data_path="./data/", 
+    # the following 2 lines may vary
+    result_dir="./exp_data/grouping/fedclar/", 
+    test_mark="_fmnist",
+    comment="",
+)
+
 if __name__ == "__main__":
     # gfl = GFL(debug)
     # gfl.run()
@@ -272,6 +297,7 @@ if __name__ == "__main__":
     # configs = [fedclar]
     configs = [fedclar_sc]
     # configs = [fedclar_debug]
+    configs = [fmnist_base]
 
     task_counter = 0
     for i, config in enumerate(configs):
@@ -280,14 +306,14 @@ if __name__ == "__main__":
         # config.local_epoch_num = 2
         # config.log_interval = 5
         
-        cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
-            + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
-            + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
-        if i < 1:
-            config.test_mark += rg_rs_mark_base
-        else:
-            config.test_mark += cvg_cvs_mark_base
+        # cvg_cvs_mark_base = "_alpha" + str(config.alpha[1]) + "_cv" + str(config.max_group_cv) + "_" \
+        #     + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
+        # rg_rs_mark_base = "_alpha" + str(config.alpha[1]) + "_gs" + str(config.min_group_size) + "_" \
+        #     + str(config.group_epoch_num) + "*" + str(config.local_epoch_num)
+        # if i < 1:
+        #     config.test_mark += rg_rs_mark_base
+        # else:
+        #     config.test_mark += cvg_cvs_mark_base
 
         # p = Process(target=process_run, args=(config,))
         # task_counter += 1

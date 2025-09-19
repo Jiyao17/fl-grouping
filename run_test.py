@@ -15,7 +15,7 @@ base_config = Config(
     sampling_frac=0.2, budget=10**8,
     global_epoch_num=1000,
     # the following line may vary
-    group_epoch_num=10, local_epoch_num=2,
+    group_epoch_num=5, local_epoch_num=2,
     lr=0.01, lr_interval=1000, local_batch_size=10,
     log_interval=5, 
     # the following two lines may vary

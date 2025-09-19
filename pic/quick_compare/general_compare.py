@@ -48,7 +48,7 @@ plt.xlim(0, 50)
 plt.ylim(0, 50)
 
 plt.xlabel('Data/Group Size', fontsize=24)
-plt.ylabel('Time', fontsize=24)
+plt.ylabel('Time (s)', fontsize=24)
 plt.xticks(fontsize=24)
 plt.yticks(fontsize=24)
 plt.grid(True)

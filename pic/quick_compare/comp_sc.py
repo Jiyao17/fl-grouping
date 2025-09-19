@@ -15,7 +15,7 @@ colors = [(0.12156862745098039, 0.4666666666666667, 0.7058823529411765), # blue
 (0.09019607843137255, 0.7450980392156863, 0.8117647058823529) # cyan
 ]
 
-root_data_dir = "/home/tuo28237/projects/fl-grouping/exp_data/"
+root_data_dir = "/home/ljy/projects/fl-grouping/exp_data/"
 # sub_dirs = ["grouping/cvg_cvs/"] * 3 + ["grouping/rg_rs/"] * 3
 # sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["grouping/rg_rs/scaffold/"] * 1 \
 #     + ["grouping/cvg_cvs/"] * 1 + ["grouping/cvg_cvs/fedprox/"] * 1 + ["grouping/cvg_cvs/scaffold/"] * 1 
@@ -54,7 +54,8 @@ sub_dirs = ["grouping/rg_rs/"] * 1 + ["grouping/rg_rs/fedprox/"] * 1 + ["groupin
 # marks = ["_alpha0.1_cv0.1_10*2", "_alpha0.1_cv0.5_10*2", "_alpha0.1_cv1.0_10*2", ]
 # fig_labels = ["CVG CV=0.28 5*2", "CVG CV=0.43 5*2", "CVG CV=0.54 5*2", ]
 # comp audio
-marks = ["_sc_alpha0.01_gs15_5*2" ] * 3 + ["_sc_alpha0.01_gs15_5*2" ] * 4
+marks = ["_sc_rg_rs", "_sc", "_sc"  ] + ["_sc_cvg_cvs", "_sc_cdg_rs", "_sc_kldg_rs",] + \
+        ["_sc_alpha0.01_gs15_5*2" ]
 # marks = ["_alpha0.1_gs5_5*2" ] * 3 + ["_alpha0.1_cv1.0_5*2", ] + ["_alpha0.1_gs5_5*2" ] * 2
 fig_labels = ["FedAvg", "FedProx", "SCAFFOLD", "Group-FEL", "OUEA", "SHARE", "FedCLAR"]
 # fig_labels = ["RG", "RG-FedProx", "RG-Scaffold", "CVG", "CVG-FedProx", "CVG-Scaffold", ]
@@ -69,17 +70,23 @@ colors = [ "black", "red", "blue", "green" ]
 # fig_labels = ["GS=5", "GS=10", "GS=20"]
 # fig_labels = ["CVG-SRCV", "RGRS GS=5"]
 
-
+marks0 = []
+marks1 = []
+for i in range(len(marks) -1):
+    marks0.append(marks[i] + "_0")
+    marks1.append(marks[i] + "_1")
+marks0.append(marks[-1])
+marks1.append(marks[-1])
 
 lines = []
 a = 1
-for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
-    if a % 2 == 0:
-        a += 1
-        # continue
-    a += 1
+marks_list = [marks0, marks1]
+
+for i, (sub_dir, mark, label) in enumerate(zip(sub_dirs, marks0, fig_labels)):
     cost_filename = root_data_dir + sub_dir + "cost" + mark
     accu_filename = root_data_dir + sub_dir + "accu" + mark
+    cost1_filename = root_data_dir + sub_dir + "cost" + marks1[i]
+    accu1_filename = root_data_dir + sub_dir + "accu" + marks1[i]
     try:
         cost = open(cost_filename, "r").readlines()[-1].strip().split()
         if cost[0] != "" and cost[0][0] == "c":
@@ -87,13 +94,19 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
         cost = [float(x) for x in cost if x != ""]
         accu = open(accu_filename, "r").readlines()[-1].strip().split()
         accu = [float(x) for x in accu if x != ""]
+        cost1 = open(cost1_filename, "r").readlines()[-1].strip().split()
+        if cost1[0] != "" and cost1[0][0] == "c":
+            continue
+        cost1 = [float(x) for x in cost1 if x != ""]
+        accu1 = open(accu1_filename, "r").readlines()[-1].strip().split()
+        accu1 = [float(x) for x in accu1 if x != ""]
     except:
-        continue
-    if len(cost) > 61:
-        cost = cost[:61]
-        accu = accu[:61]
-    plt.plot(cost, accu, label=label)
-    # plt.plot(range(len(cost)), accu,  label=label)
+        raise
+
+        for a
+        
+    plt.plot(range(len(avg_cost)), avg_accu, label=label)
+    # plt.plot(avg_cost, avg_accu,  label=label)
 
     print(label)
     print("Avg last 3 accu:", sum(accu[-3:]) / 3)
@@ -102,7 +115,7 @@ for sub_dir, mark, label in zip(sub_dirs, marks, fig_labels):
 
 # max_cost = 2000000
 # plt.xlim(0, 60)
-plt.xlim(0, 1.4e5)
+# plt.xlim(0, 1.2e5)
 # plt.ylim(0.15, 0.6)
 
     # 300 represents number of points to make between T.min and T.max

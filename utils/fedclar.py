@@ -1,6 +1,4 @@
 
-from asyncio import Task
-from matplotlib import test
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -14,7 +12,7 @@ import copy
 import random
 
 from utils.data import TaskName, load_dataset, DatasetPartitioner, quick_draw
-from utils.model import CIFARResNet, test_model, SpeechCommand
+from utils.model import CIFARResNet, test_model, SpeechCommand, FMNIST
 
 from torch.utils.data.dataset import Dataset, Subset
 
@@ -333,7 +331,6 @@ class TaskSpeechCommand():
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-
 class Client:
     @staticmethod
     def init_clients(subsets_indexes: 'list[Subset]', config: Config) \
@@ -348,6 +345,8 @@ class Client:
         client_num = len(subsets_indexes)
         if config.task_name == TaskName.CIFAR:
             model: nn.Module = CIFARResNet()
+        elif config.task_name == TaskName.FMNIST:
+            model = FMNIST()
         elif config.task_name == TaskName.SPEECHCOMMAND:
             model = SpeechCommand()
 
@@ -365,6 +364,8 @@ class Client:
         for i in range(client_num):
             if config.task_name == TaskName.CIFAR:
                 new_model = CIFARResNet()
+            elif config.task_name == TaskName.FMNIST:
+                new_model = FMNIST()
             elif config.task_name == TaskName.SPEECHCOMMAND:
                 new_model = SpeechCommand()
             # torch.nn.init.normal_(model)
@@ -396,7 +397,7 @@ class Client:
             self.transform = self.task.transform
             self.transform.to(self.config.device)
 
-        elif self.config.task_name == TaskName.CIFAR:
+        elif self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
             self.model = model
             # self.training_cost = self.calc_training_cost(len(self.trainset.indices))
             self.loss_fn = nn.CrossEntropyLoss()
@@ -428,16 +429,9 @@ class Client:
         if trans_learn:
             params = self.model.parameters()
             self.model.fc.requires_grad = False
-            # params_num = 0
-            # for param in params:
-            #     params_num += 1
-            # for i, param in enumerate(params):
-            #     # freeze all layers except the last one
-            #     if i < params_num - 1:
-            #         param.requires_grad = False
         
             train_params = filter(lambda p: p.requires_grad, params)
-            if self.task_name == TaskName.CIFAR:
+            if self.task_name == TaskName.CIFAR or self.task_name == TaskName.FMNIST:
                 self.optimizer = torch.optim.SGD(train_params, lr=self.lr, momentum=0.9, weight_decay=0.0001)
             elif self.task_name == TaskName.SPEECHCOMMAND:
                 self.optimizer = torch.optim.Adam(train_params, lr=self.lr, weight_decay=0.0001)
@@ -445,10 +439,6 @@ class Client:
         for i, param in enumerate(self.model.parameters()):
             self.temp_model_params[i] = param.detach().data
 
-        # for i, c_d in enumerate(self.c_client):
-        #     self.c_global[i] = c_d.clone().detach().data
-
-        # reset loss and average gradient
         self.train_loss: float = 0
         for tensor in self.grad:
             tensor.zero_()
@@ -462,72 +452,35 @@ class Client:
 
                 if self.task_name == TaskName.SPEECHCOMMAND:
                     self.transform = self.transform.to(self.device)
-
-                    # X_ = X.clone()
-                    # print(self.transform.device)
-                    # print(X[0].shape)
                     X = self.transform(X)
-                    # print(X[0].shape)
-                    # X.to(self.device)
-                    # X = X.to(self.device)
 
                 y = self.model(X)
                 if self.task_name == TaskName.SPEECHCOMMAND:
                     loss = self.loss_fn(y.squeeze(1), label)
-                    # print(y.squeeze(1).shape)
-                    # print(label.shape)
                 else:
                     loss = self.loss_fn(y, label)
 
-                if self.train_method == Config.TrainMethod.FEDPROX:
-                    for w_t, w in zip(self.temp_model_params, self.model.parameters()):
-                        loss += 1 / 2. * torch.pow(torch.norm(w.data - w_t.data), 2)
-
-                
-
                 self.train_loss += loss.item()
-
                 self.optimizer.zero_grad()
                 loss.backward()
 
-                if self.train_method == Config.TrainMethod.SCAFFOLD:
-                    for param, c_i, c_g in zip(self.model.parameters(), self.c_client, self.c_global):
-                        param.grad += -c_i + c_g
                 # get gradient 
                 # for i, param in enumerate(self.model.parameters()):
                 #     self.grad[i] += param.grad.detach().data
 
                 self.optimizer.step()
-            
-            # if self.task_name == TaskName.SPEECHCOMMAND:
-            #     self.scheduler.step()
 
-
-        # for c_temp, param_c, param_g, c_i, c_g in zip(self.c_temp, self.model.parameters(), self.temp_model_params, self.c_client, self.c_global):
-
-        #     c_temp = c_i - c_g + 1/(self.lr * self.local_epoch_num) * (param_g - param_c)
-
-        if self.train_method == Config.TrainMethod.SCAFFOLD:
-            for i, param_c in enumerate(self.model.parameters()):
-                self.c_delta[i] = -1 * self.c_global[i] + (1/(self.lr * self.local_epoch_num)) * (self.temp_model_params[i] - param_c)
-
-            for i, c_d in enumerate(self.c_delta):
-                self.c_client[i] = self.c_client[i] - c_d
-        # for i, param in enumerate(self.model.parameters()):
-        #     self.grad[i] /= self.local_epoch_num * len(self.trainset.indices)
-        # self.train_loss /= self.local_epoch_num * len(self.trainset.indices)
-        
         # unfreeze all layers
         if trans_learn:
             self.model.fc.requires_grad = True
-            if self.task_name == TaskName.CIFAR:
+            if self.task_name == TaskName.CIFAR or self.task_name == TaskName.FMNIST:
                 self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
             elif self.task_name == TaskName.SPEECHCOMMAND:
                 self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=0.0001)
         return self.train_loss, self.grad
 
     def set_lr(self, new_lr):
-        if self.task_name == TaskName.CIFAR:
+        if self.task_name == TaskName.CIFAR or self.task_name == TaskName.FMNIST:
             self.lr = new_lr
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.9, weight_decay=0.0001) #
         elif self.task_name == TaskName.SPEECHCOMMAND:
@@ -537,6 +490,7 @@ class Client:
     # def calc_training_cost(self, dataset_len: int) -> float:
     #     training_cost = 0.00495469 * dataset_len + 0.01023199
     #     return training_cost
+
 
 class FedCLAR:
 
@@ -570,8 +524,8 @@ class FedCLAR:
         self.fcost.flush()
         self.fcaccu.flush()
 
-        self.set_seed(data_seed)
-        if self.config.task_name == TaskName.CIFAR:
+        # self.set_seed(data_seed)
+        if self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
             self.trainset, self.testset = load_dataset(self.config.task_name)
         elif self.config.task_name == TaskName.SPEECHCOMMAND:
             self.trainset, self.testset = TaskSpeechCommand.get_datasets(self.config)
@@ -589,7 +543,7 @@ class FedCLAR:
         self.clients_data_nums = np.sum(self.distributions, axis=1)
         self.clients_weights = self.clients_data_nums / np.sum(self.distributions)
         
-        self.set_seed()
+        # self.set_seed()
 
         # assign clients to servers
         self.servers_clients: 'list[list[int]]' = []
@@ -713,6 +667,7 @@ class FedCLAR:
                     self.servers_groups[server_num].append(group_num_start)
                     group_num_start += 1
 
+
         def __random_grouping(server_clients_arg: 'list[int]', server_no, min_group_size: int):
             """
             stop when group size is reached
@@ -754,24 +709,8 @@ class FedCLAR:
                 
                 group_size = len(group)
                 for client_index in group:
-                    if self.config.task_name == TaskName.CIFAR:
-                        # data from Raspberry PI 4
-                        # secagg coefficiences: [ 0.01629675 -0.02373668  0.55442565]
-                        # distance coefficiences: [ 0.00548707,  0.0038231,  -0.06900253]
-                        # double param size (SCAFFOLD): [0.01879308 0.18775216 0.19883809]
-                        # fedprox coefs: [0.06719291 0.14201339]
 
-                        # secagg coeffs
-                        group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
-                        # regular train coeffs
-                        train_coefs = [ 0.07093414, -0.00559966]
-
-                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                            group_coefs = [0.01879308, 0.18775216, 0.19883809]
-                            train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
-                        if self.config.train_method == Config.TrainMethod.FEDPROX:
-                            train_coefs = [0.06719291, 0.14201339]
-                    elif self.config.task_name == TaskName.SPEECHCOMMAND:
+                    if self.config.task_name == TaskName.SPEECHCOMMAND:
                         # audio
                         # distance coefficiences: [ 0.00079432 -0.00142096  0.02028448]
                         # training coefficiences: [0.00244381 0.10137752]
@@ -789,7 +728,17 @@ class FedCLAR:
                         if self.config.train_method == Config.TrainMethod.FEDPROX:
                             train_coefs = [0.00247751, 0.10650803]
 
+                    else:
+                        # secagg coeffs
+                        group_coefs = [ 0.01629675, -0.02373668,  0.55442565]
+                        # regular train coeffs
+                        train_coefs = [ 0.07093414, -0.00559966]
 
+                        if self.config.train_method == Config.TrainMethod.SCAFFOLD:
+                            group_coefs = [0.01879308, 0.18775216, 0.19883809]
+                            train_coefs = [0.07093414, -0.00559966 + 0.03344287872314453]
+                        if self.config.train_method == Config.TrainMethod.FEDPROX:
+                            train_coefs = [0.06719291, 0.14201339]
 
                     training_cost = (train_coefs[0] * self.clients_data_nums[client_index] + train_coefs[1]) * self.config.local_epoch_num
                     group_overhead = (group_coefs[0] * (group_size*group_size) + group_coefs[1] * group_size + group_coefs[2])
@@ -805,6 +754,9 @@ class FedCLAR:
             def _sim_mat(model_sds: 'dict[str, Tensor]') -> np.ndarray:
                 # models: 'list[nn.Module]' = [ self.clients[client_idx].model for client_idx in clients]
                 # print(model_sds[0].keys())
+                # if self.config.task_name == TaskName.FMNIST:
+                #     weights = [ sd['fc.weight'].detach().cpu().numpy().flatten() for sd in model_sds]
+                #     biases = [ sd['fc.bias'].detach().cpu().numpy().flatten() for sd in model_sds]
                 weights = [ sd['fc.weight'].detach().cpu().numpy().flatten() for sd in model_sds]
                 biases = [ sd['fc.bias'].detach().cpu().numpy().flatten() for sd in model_sds]
                 # concatenate corresponding weight and bias
@@ -1068,12 +1020,6 @@ class FedCLAR:
                 new_sd = copy.deepcopy(state_dict_avg)
                 self.clients[client_index].model.load_state_dict(new_sd)
 
-            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                for client_index in self.groups[group_index]:
-                    for i, c_d in enumerate(c_group):
-                        self.clients[client_index].c_global[i] = c_group[i].clone().detach().data
-
-
         for i in range(self.config.group_epoch_num):
             group_train_all_devices(group)
             group_aggregate_distribute(group)
@@ -1125,13 +1071,6 @@ class FedCLAR:
 
             for key in state_dict_avg.keys():
                 state_dict_avg[key] += state_dict[key] * weight
-
-            # average delta drift in SCAFFOLD
-            if self.config.train_method == Config.TrainMethod.SCAFFOLD:
-                # delta drift in SCAFFOLD
-                for i, c_d in enumerate(self.c_global):
-                    self.c_global[i] += repr_client.c_client[i] * weight
-
         
         self.model.load_state_dict(state_dict_avg)
 
@@ -1173,7 +1112,7 @@ class FedCLAR:
         # indices = np.random.choice(range(len(self.testset)), 1000, replace=False)
         # subtestset = Subset(self.testset, indices=indices)
         # # print(indices)
-        if self.config.task_name == TaskName.CIFAR:
+        if self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
             self.testloader = DataLoader(self.testset, 500, shuffle=True)
         elif self.config.task_name == TaskName.SPEECHCOMMAND:
             self.testloader = self.task.test_dataloader
@@ -1220,7 +1159,7 @@ class FedCLAR:
 
             # lr decay
             if i % self.config.lr_interval == self.config.lr_interval - 1:
-                if self.config.task_name == TaskName.CIFAR:
+                if self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
                     for client in self.clients:
                         client.set_lr(client.lr / 10)
                     print('lr decay to {}'.format(self.clients[0].lr))
@@ -1254,7 +1193,7 @@ class FedCLAR:
                                 self.global_distribute([group_index])
                             
                             # all clients in selected groups train individually
-                            for i in range(self.config.group_epoch_num):
+                            for j in range(self.config.group_epoch_num):
                                 for client_index in self.groups[group_index]:
                                     self.clients[client_index].train(trans_learn=True)
 
@@ -1295,7 +1234,7 @@ class FedCLAR:
 
             # test and record
             if i % self.config.log_interval == self.config.log_interval - 1:
-                if self.config.task_name == TaskName.CIFAR:
+                if self.config.task_name == TaskName.CIFAR or self.config.task_name == TaskName.FMNIST:
                     if i < self.config.FedCLAR_cluster_epoch:
                         cluster_accu = 0
                     else:

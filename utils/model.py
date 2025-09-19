@@ -26,7 +26,6 @@ import torch.nn.functional as F
 # Code for CIFAR ResNet is modified from https://github.com/itchencheng/pytorch-residual-networks
 
 
-
 class ResBlock(nn.Module):
     def __init__(self, in_chann, chann, stride):
         super(ResBlock, self).__init__()
@@ -174,3 +173,79 @@ class SpeechCommand(nn.Module):
         return F.log_softmax(x, dim=2)
 
 
+class FMNIST(nn.Module):
+    
+    def __init__(self, n=1):
+        super(FMNIST, self).__init__()
+        self.Block = ResBlock
+        self.conv0 = nn.Conv2d(1, 8, kernel_size=3, padding=1)
+        self.bn0   = nn.BatchNorm2d(8)
+        self.convs  = self._make_layers(n)
+        self.avgpool = nn.AvgPool2d(kernel_size=5, stride=1)
+        self.fc = nn.Linear(288, 10)
+
+    def forward(self, x):
+        x = self.conv0(x)
+        x = self.bn0(x)
+        
+        x = F.relu(x)
+        
+        x = self.convs(x)
+        
+        x = self.avgpool(x)
+        x = x.view(x.size(0),-1)
+        x = self.fc(x)
+        
+        return x
+
+    def _make_layers(self, n):
+        layers = []
+        in_chann = 8
+        chann = 8
+        stride = 1
+        for i in range(3):
+            for j in range(n):
+                if ((i > 0) and (j == 0)):
+                    in_chann = chann
+                    chann = chann * 2
+                    stride = 2
+
+                layers += [self.Block(in_chann, chann, stride)]
+
+                stride = 1
+                in_chann = chann
+
+        return nn.Sequential(*layers)
+
+
+if __name__ == "__main__":
+    import torch
+    from torch import nn
+    from torch.utils.data import DataLoader
+    from torchvision import datasets, transforms
+
+
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+    trainset = datasets.FashionMNIST('~/.pytorch/FMNIST_data/', download=True, train=True, transform=transform)
+    trainloader = DataLoader(trainset, batch_size=64, shuffle=True)
+
+    testset = datasets.FashionMNIST('~/.pytorch/FMNIST_data/', download=True, train=False, transform=transform)
+    testloader = DataLoader(testset, batch_size=64, shuffle=True)
+
+    model = FMNIST(3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    loss_fn = nn.CrossEntropyLoss()
+
+    model = model.to('cuda')
+    for epoch in range(10):
+        model.train()
+        for samples, labels in trainloader:
+            samples, labels = samples.to('cuda'), labels.to('cuda')
+            optimizer.zero_grad()
+            pred = model(samples)
+            loss = loss_fn(pred, labels)
+            loss.backward()
+            optimizer.step()
+
+        acc, loss = test_model(model, testloader)
+        print(f"Epoch {epoch}: Acc: {acc}, Loss: {loss}")

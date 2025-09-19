@@ -18,6 +18,7 @@ from utils.model import SpeechCommand
 class TaskName(Enum):
     CIFAR = 1
     SPEECHCOMMAND = 2
+    FMNIST = 3
 
 def quick_draw(values: Iterable, filename: str="./pic/quick_draw.png"):
     plt.plot(values)
@@ -52,11 +53,29 @@ def load_dataset_CIFAR(data_path: str, dataset_type: str):
 
     return (trainset, testset)
 
+def load_dataset_FMNIST(data_path: str, dataset_type: str):
+    # transform
+    transform_func = tvtf.Compose([
+        tvtf.ToTensor(),
+        tvtf.Normalize((0.5,), (0.5,))
+        ])
+
+    trainset, testset = None, None
+    if dataset_type != "test":
+        trainset = torchvision.datasets.FashionMNIST(root=data_path, train=True,
+            download=True, transform=transform_func)
+    if dataset_type != "train":
+        testset = torchvision.datasets.FashionMNIST(root=data_path, train=False,
+            download=True, transform=transform_func)
+
+    return (trainset, testset)
+
 def load_dataset(dataset_name: TaskName, data_path: str="~/projects/fl-grouping/data/", dataset_type: str="both"):
     if dataset_name == TaskName.CIFAR:
         return load_dataset_CIFAR(data_path, dataset_type)
-    # elif dataset_name == TaskName.SPEECHCOMMAND:
-    #     return load_dataset_SpeechCommand(data_path, dataset_type)
+    elif dataset_name == TaskName.FMNIST:
+        return load_dataset_FMNIST(data_path, dataset_type)
+    
 
 
 def get_targets_set_as_list(dataset: Dataset) -> list:
@@ -80,6 +99,9 @@ def dataset_categorize(dataset: Dataset, task_name:TaskName) -> 'list[list[int]]
         targets = []
         for waveform, sample_rate, label, speaker_id, utterance_number in dataset:
             targets.append(label)
+    elif task_name == TaskName.FMNIST:
+        targets = dataset.targets
+
     if type(targets) is not list:
         targets = targets.tolist()
     targets_list = list(set(targets))
@@ -138,7 +160,8 @@ class DatasetPartitioner:
         self.data_num_range = data_num_range
         self.task_name = task_name
         if task_name == TaskName.CIFAR:
-
+            self.label_type_num = len(get_targets_set_as_list(dataset))
+        elif task_name == TaskName.FMNIST:
             self.label_type_num = len(get_targets_set_as_list(dataset))
         elif task_name == TaskName.SPEECHCOMMAND:
             self.label_type_num = len(DatasetPartitioner.speech_command_labels)
